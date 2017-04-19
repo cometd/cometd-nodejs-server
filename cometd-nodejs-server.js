@@ -797,7 +797,6 @@ module.exports = function() {
         var _channels = {};
         var _sessions = {};
         var _listeners = {};
-        var _policy;
         var _sweeper;
 
         function _error(reply, error) {
@@ -818,32 +817,36 @@ module.exports = function() {
         }
 
         function _canHandshake(session, message, callback) {
-            if (_policy) {
-                _policy.canHandshake(session, message, callback);
+            var p = _self.policy;
+            if (p && p.canHandshake) {
+                p.canHandshake(session, message, callback);
             } else {
                 callback(null, true);
             }
         }
 
         function _canCreate(session, message, channelName, callback) {
-            if (_policy) {
-                _policy.canCreate(session, message, channelName, callback);
+            var p = _self.policy;
+            if (p && p.canCreate) {
+                p.canCreate(session, message, channelName, callback);
             } else {
                 callback(null, true);
             }
         }
 
         function _canSubscribe(session, message, channel, callback) {
-            if (_policy) {
-                _policy.canSubscribe(session, message, channel, callback);
+            var p = _self.policy;
+            if (p && p.canSubscribe) {
+                p.canSubscribe(session, message, channel, callback);
             } else {
                 callback(null, true);
             }
         }
 
         function _canPublish(channel, session, message, callback) {
-            if (_policy) {
-                _policy.canPublish(session, message, channel, callback);
+            var p = _self.policy;
+            if (p && p.canPublish) {
+                p.canPublish(session, message, channel, callback);
             } else {
                 callback(null, true);
             }
@@ -1149,6 +1152,20 @@ module.exports = function() {
             get options() {
                 return _options;
             },
+            /**
+             * The security policy object that is interrogated for authorization.
+             * It may define zero or all of the following methods, and the
+             * callback parameters must be completed either by an error at
+             * the first parameter, or by a truthy value at the second parameter.
+             * If a method is missing, it is implied that the authorization is granted.
+             * <ul>
+             *   <li><code>canHandshake(session, message, callback)</code></li>
+             *   <li><code>canCreate(session, message, channelName, callback)</code></li>
+             *   <li><code>canSubscribe(session, message, channel, callback)</code></li>
+             *   <li><code>canPublish(session, message, channel, callback)</code></li>
+             * </ul>
+             */
+            policy: null,
             /**
              * Adds a listener function for the given event.
              *

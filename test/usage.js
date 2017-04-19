@@ -170,7 +170,7 @@ describe('usage', function() {
         });
     });
 
-    it.only('sweeps channels', function(done) {
+    it('sweeps channels', function(done) {
         var period = 500;
         _cometd.options.sweepPeriod = period;
         this.timeout(5 * period);
@@ -199,5 +199,32 @@ describe('usage', function() {
                 }, 2 * period);
             }
         });
-    })
+    });
+
+    it('handshake policy', function(done) {
+        _cometd.policy = {
+            canHandshake: function(session, message, callback) {
+                callback(null, message.credentials);
+            }
+        };
+
+        // Try without authentication fields.
+        _client.handshake({}, function(hs1) {
+            assert.strictEqual(hs1.successful, false);
+            assert.ok(hs1.advice);
+            assert.strictEqual(hs1.advice.reconnect, 'none');
+
+            // Try with authentication fields.
+            setTimeout(function() {
+                _client.handshake({
+                    credentials: 'secret'
+                }, function(hs2) {
+                    assert.strictEqual(hs2.successful, true);
+                    _client.disconnect(function() {
+                        done();
+                    });
+                });
+            }, 0);
+        });
+    });
 });
