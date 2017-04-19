@@ -169,4 +169,35 @@ describe('usage', function() {
             }
         });
     });
+
+    it.only('sweeps channels', function(done) {
+        var period = 500;
+        _cometd.options.sweepPeriod = period;
+        this.timeout(5 * period);
+
+        var channelName = '/jaz';
+
+        _cometd.addListener('channelRemoved', function(channel) {
+            assert.strictEqual(channel.name, channelName);
+            done();
+        });
+
+        _client.handshake(function(hs) {
+            if (hs.successful) {
+                var channel = _cometd.createServerChannel(channelName);
+                var listener = function() {
+                    return undefined;
+                };
+                // Add a listener to make the channel non sweepable.
+                channel.addListener('message', listener);
+                // Wait for a few sweeps.
+                setTimeout(function() {
+                    channel = _cometd.getServerChannel(channelName);
+                    assert.ok(channel);
+                    // Remove the listener to make the channel sweepable.
+                    channel.removeListener('message', listener);
+                }, 2 * period);
+            }
+        });
+    })
 });

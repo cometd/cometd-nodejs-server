@@ -420,10 +420,11 @@ module.exports = function() {
     }
 
     /**
+     * Representation of a channel.
      *
-     * @param cometd
-     * @param name
-     * @returns {{name, meta, service, broadcast, wildNames, publish: publish, listeners: listeners, addListener: addListener, removeListener: removeListener, subscribers, _subscribe: _subscribe, _unsubscribe: _unsubscribe}}
+     * @param cometd the CometD server object
+     * @param name the channel name
+     * @returns {ServerChannel} a ServerChannel object
      * @constructor
      */
     function ServerChannel(cometd, name) {
@@ -559,6 +560,22 @@ module.exports = function() {
                     _notifyEvent(cometd.listeners('unsubscribed'), [this, session, message]);
                 }
                 callback(null, true);
+            },
+            _sweep: function() {
+                if (this.meta) {
+                    return;
+                }
+                for (var id in _subscribers) {
+                    if (_subscribers.hasOwnProperty(id)) {
+                        return;
+                    }
+                }
+                for (var event in _listeners) {
+                    if (_listeners.hasOwnProperty(event)) {
+                        return;
+                    }
+                }
+                cometd._removeServerChannel(this);
             }
         };
     }
@@ -837,6 +854,11 @@ module.exports = function() {
             _notifyEvent(_self.listeners('sessionAdded'), [session, message]);
         }
 
+        function _addServerChannel(channel) {
+            _channels[channel.name] = channel;
+            _notifyEvent(_self.listeners('channelAdded'), [channel]);
+        }
+
         function _metaHandshake(session, message, callback) {
             _canHandshake(session, message, function(x, r) {
                 if (x) {
@@ -1107,6 +1129,11 @@ module.exports = function() {
         }
 
         function _sweep() {
+            for (var name in _channels) {
+                if (_channels.hasOwnProperty(name)) {
+                    _channels[name]._sweep();
+                }
+            }
             for (var id in _sessions) {
                 if (_sessions.hasOwnProperty(id)) {
                     _sessions[id]._sweep();
@@ -1185,7 +1212,7 @@ module.exports = function() {
                 var channel = _self.getServerChannel(name);
                 if (!channel) {
                     channel = new ServerChannel(_self, name);
-                    _channels[name] = channel;
+                    _addServerChannel(channel);
                 }
                 return channel;
             },
@@ -1278,6 +1305,13 @@ module.exports = function() {
                     delete _sessions[session.id];
                     _notifyEvent(_self.listeners('sessionRemoved'), [session, timeout]);
                     session._removed(timeout);
+                }
+            },
+            _removeServerChannel: function(channel) {
+                var existing = _channels[channel.name];
+                if (existing) {
+                    delete _channels[channel.name];
+                    _notifyEvent(_self.listeners('channelRemoved'), [channel]);
                 }
             },
             _log: function _log(tag, format, args) {
