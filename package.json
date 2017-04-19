@@ -1,0 +1,24 @@
+{
+  "name": "cometd-nodejs-server",
+  "version": "1.0.0-BETA0",
+  "description": "CometD server for NodeJS",
+  "keywords": ["node", "nodejs", "cometd"],
+  "homepage": "https://cometd.org",
+  "bugs": {
+    "url": "https://github.com/cometd/cometd-nodejs-server/issues"
+  },
+  "license": "Apache-2.0",
+  "main": "cometd-nodejs-server.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cometd/cometd-nodejs-server.git"
+  },
+  "scripts": {
+    "test": "mocha"
+  },
+  "devDependencies": {
+    "mocha": "*",
+    "cometd-nodejs-client": "*",
+    "cometd": "*"
+  }
+}
