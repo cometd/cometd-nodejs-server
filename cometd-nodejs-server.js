@@ -80,6 +80,7 @@ module.exports = function() {
         var _self;
         var _prefix = 'long-polling.json';
         var _sessions = {};
+        var _browserMetaConnects = {};
 
         function _option(options, prefix, name, dftValue) {
             var result = options[name];
@@ -184,6 +185,46 @@ module.exports = function() {
                 response.end(']');
             }
         }
+        
+        function _addBrowserMetaConnect(session) {
+            var maxSessionsPerBrowser = _self.option('maxSessionsPerBrowser');
+            if (maxSessionsPerBrowser < 0) {
+                return true;
+            } else if (maxSessionsPerBrowser === 0) {
+                return false;
+            }
+            var browserId = session._browserId;
+            var count = _browserMetaConnects[browserId];
+            if (count === undefined) {
+                count = _browserMetaConnects[browserId] = 0;
+            }
+            if (count === maxSessionsPerBrowser) {
+                return false;
+            }
+            ++_browserMetaConnects[browserId];
+            return true;
+        }
+
+        function _removeBrowserMetaConnect(session) {
+            var maxSessionsPerBrowser = _self.option('maxSessionsPerBrowser');
+            if (maxSessionsPerBrowser > 0) {
+                var browserId = session._browserId;
+                var count = _browserMetaConnects[browserId];
+                if (count !== undefined) {
+                    --_browserMetaConnects[browserId];
+                }
+            }
+        }
+
+        function _advise(reply) {
+            var advice = reply.advice;
+            if (!advice) {
+                advice = reply.advice = {};
+            }
+            advice.reconnect = 'retry';
+            advice.timeout = _self.option('timeout');
+            advice.interval = _self.option('interval');
+        }
 
         function _processMetaHandshake(context, session, message, callback) {
             cometd._process(session, message, function(x, r) {
@@ -191,7 +232,6 @@ module.exports = function() {
                     callback(x);
                 } else {
                     var reply = message.reply;
-                    cometd._log(_prefix, 'reply', reply);
                     if (reply.successful) {
                         var cookieName = _self.option('browserCookieName');
                         var browserId = context.cookies[cookieName];
@@ -205,6 +245,8 @@ module.exports = function() {
                             _sessions[browserId] = list;
                         }
                         list.push(session);
+                        session._browserId = browserId;
+
                         session.addListener('remove', function() {
                             var i = list.indexOf(session);
                             if (i >= 0) {
@@ -212,8 +254,10 @@ module.exports = function() {
                             }
                             if (list.length === 0) {
                                 delete _sessions[browserId];
+                                delete _browserMetaConnects[browserId];
                             }
                         });
+                        _advise(reply);
                     }
                     callback(null, r);
                 }
@@ -231,11 +275,14 @@ module.exports = function() {
             cometd._process(session, message, function(x) {
                 if (x) {
                     callback(x);
-                } else if (session) {
+                } else {
                     var reply = message.reply;
-                    if (reply.successful && !session._hasMessages) {
-                        var allowSuspend = true; // TODO: handle maxSessionsPerBrowser
+                    if (session && !session._hasMessages && reply.successful) {
+                        var allowSuspend = _addBrowserMetaConnect(session);
                         if (allowSuspend) {
+                            if (message.advice) {
+                                _advise(reply);
+                            }
                             var timeout = session._calculateTimeout(_self.option('timeout'));
                             if (timeout > 0) {
                                 var scheduler = {
@@ -254,7 +301,7 @@ module.exports = function() {
                                             clearTimeout(this._timeout);
                                             this._timeout = null;
                                             session._scheduler = null;
-                                            // TODO: decBrowserId
+                                            _removeBrowserMetaConnect(session);
                                             var response = context.response;
                                             response.statusCode = 408;
                                             response.end();
@@ -270,6 +317,7 @@ module.exports = function() {
                                         }
                                     },
                                     _flush: function() {
+                                        _removeBrowserMetaConnect(session);
                                         _respond(context.response, {
                                             sendQueue: true,
                                             sendReplies: true,
@@ -285,18 +333,29 @@ module.exports = function() {
                                 cometd._log(_prefix, 'suspend', message);
                                 callback(null, false);
                             } else {
-                                // TODO: decBrowserId
+                                _removeBrowserMetaConnect(session);
                                 callback(null, true);
                             }
                         } else {
-                            // TODO: multiple-clients
+                            var advice = reply.advice;
+                            if (!advice) {
+                                advice = reply.advice = {};
+                            }
+                            advice['multiple-clients'] = true;
+
+                            var multiSessionInterval = _self.option('multiSessionInterval');
+                            if (multiSessionInterval > 0) {
+                                advice.reconnect = 'retry';
+                                advice.interval = multiSessionInterval;
+                            } else {
+                                reply.successful = false;
+                                advice.reconnect = 'none';
+                            }
                             callback(null, true);
                         }
                     } else {
                         callback(null, true);
                     }
-                } else {
-                    callback(null, true);
                 }
             });
         }
@@ -328,14 +387,15 @@ module.exports = function() {
 
                 switch (message.channel) {
                     case '/meta/handshake': {
-                        _processMetaHandshake(context, session, message, function(x, y) {
+                        _processMetaHandshake(context, session, message, function(x) {
                             if (x) {
                                 c(x);
                             } else {
+                                cometd._log(_prefix, 'reply', message.reply);
                                 local.sendQueue = false;
                                 local.sendReplies = true;
                                 local.scheduleExpiration = true;
-                                c(null, y);
+                                c();
                             }
                         });
                         break;
@@ -345,21 +405,25 @@ module.exports = function() {
                             if (x) {
                                 c(x);
                             } else {
-                                local.sendQueue = local.sendReplies = r;
+                                cometd._log(_prefix, 'reply', message.reply);
+                                local.sendQueue = r;
+                                local.sendReplies = r;
                                 local.scheduleExpiration = true;
-                                c(null, r);
+                                c();
                             }
                         });
                         break;
                     }
                     default: {
-                        cometd._process(session, message, function(x, y) {
+                        cometd._process(session, message, function(x) {
                             if (x) {
                                 c(x);
                             } else {
-                                local.sendQueue = local.sendReplies = true;
+                                cometd._log(_prefix, 'reply', message.reply);
+                                local.sendQueue = true;
+                                local.sendReplies = true;
                                 local.scheduleExpiration = false;
-                                c(null, y);
+                                c();
                             }
                         });
                     }
@@ -412,6 +476,12 @@ module.exports = function() {
                         break;
                     case 'timeout':
                         dftValue = 30000;
+                        break;
+                    case 'maxSessionsPerBrowser':
+                        dftValue = 1;
+                        break;
+                    case 'multiSessionInterval':
+                        dftValue = 2000;
                         break;
                 }
                 return _option(cometd.options, _prefix, name, dftValue);
@@ -740,7 +810,6 @@ module.exports = function() {
                 }
                 return dftInterval;
             },
-            _advice: null,
             _subscribed: function(channel) {
                 _subscriptions.push(channel);
             },
@@ -791,6 +860,7 @@ module.exports = function() {
     var CometDServer = function(options) {
         var _self;
         var _options = _mixin({
+            logLevel: 'info',
             sweepPeriod: 997
         }, options);
         var _transport;
@@ -868,10 +938,6 @@ module.exports = function() {
                     callback(x);
                 } else {
                     var reply = message.reply;
-                    var advice = reply.advice;
-                    if (!advice) {
-                        advice = reply.advice = {};
-                    }
                     if (r) {
                         session._handshake();
                         _addServerSession(session, message);
@@ -879,10 +945,12 @@ module.exports = function() {
                         reply.clientId = session.id;
                         reply.version = "1.0";
                         reply.supportedConnectionTypes = ['long-polling'];
-                        advice.reconnect = 'retry';
-                        advice.interval = 0;
                     } else {
                         _error(reply, '403::handshake_denied');
+                        var advice = reply.advice;
+                        if (!advice) {
+                            advice = reply.advice = {};
+                        }
                         if (!advice.reconnect) {
                             advice.reconnect = 'none';
                         }
@@ -899,20 +967,11 @@ module.exports = function() {
                 session._setClientTimeout(timeout === undefined ? -1 : timeout);
                 var interval = adviceIn.interval;
                 session._setClientInterval(interval === undefined ? -1 : interval);
-                session._advice = null;
             } else {
                 session._setClientTimeout(-1);
                 session._setClientInterval(-1);
             }
-
-            var reply = message.reply;
-            reply.successful = true;
-
-            var adviceOut = session._advice;
-            if (adviceOut) {
-                reply.advice = adviceOut;
-            }
-
+            message.reply.successful = true;
             callback();
         }
 

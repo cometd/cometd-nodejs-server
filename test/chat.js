@@ -50,8 +50,8 @@ describe('chat', function() {
                                 client1.disconnect(function() {
                                     client2.disconnect(function() {
                                         done();
-                                    })
-                                })
+                                    });
+                                });
                             }
                         }, function(ss1) {
                             if (ss1.successful) {
