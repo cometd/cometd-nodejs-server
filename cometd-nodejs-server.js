@@ -285,12 +285,14 @@ module.exports = function() {
                             }
                             var timeout = session._calculateTimeout(_self.option('timeout'));
                             if (timeout > 0) {
+                                var context = _mixin({}, cometd.context);
                                 var scheduler = {
                                     resume: function() {
                                         if (this._timeout) {
                                             clearTimeout(this._timeout);
                                             this._timeout = null;
                                             session._scheduler = null;
+                                            cometd._setContext(context);
                                             _notifyEvent(session.listeners('resume'), [session, message, false]);
                                             cometd._log(_prefix, 'resume wakeup', message);
                                             this._flush();
@@ -311,6 +313,7 @@ module.exports = function() {
                                         if (this._timeout) {
                                             this._timeout = null;
                                             session._scheduler = null;
+                                            cometd._setContext(context);
                                             _notifyEvent(session.listeners('resume'), [session, message, true]);
                                             cometd._log(_prefix, 'resume expire', message);
                                             this._flush();
@@ -323,6 +326,7 @@ module.exports = function() {
                                             sendReplies: true,
                                             scheduleExpiration: true
                                         }, session, [message]);
+                                        cometd._setContext(null);
                                     }
                                 };
                                 scheduler._timeout = setTimeout(function() {
@@ -360,7 +364,7 @@ module.exports = function() {
             });
         }
 
-        function _processMessages(request, response, messages) {
+        function _processMessages(request, response, messages, callback) {
             cometd._log(_prefix, 'processing', messages.length, 'messages');
 
             var cookies = _parseCookies(request.headers.cookie);
@@ -433,8 +437,10 @@ module.exports = function() {
                     cometd._log(_prefix, 'message processing failed', x);
                     response.statusCode = 500;
                     response.end();
+                    callback(x);
                 } else {
                     _respond(response, local, session, messages);
+                    callback();
                 }
             });
         }
@@ -450,7 +456,13 @@ module.exports = function() {
                     request.addListener('end', function() {
                         try {
                             var messages = JSON.parse(content);
-                            _processMessages(request, response, messages);
+                            cometd._setContext({
+                                request: request,
+                                response: response
+                            });
+                            _processMessages(request, response, messages, function() {
+                                cometd._setContext(null);
+                            });
                         } catch (x) {
                             cometd._log(_prefix, x.stack);
                             response.statusCode = 400;
@@ -722,12 +734,12 @@ module.exports = function() {
              * Delivers a message to the remote client represented by this ServerSession.
              *
              * @param sender the session that sends the message
-             * @param channel the message channel
+             * @param channelName the message channel
              * @param data the message data
              */
-            deliver: function(sender, channel, data) {
+            deliver: function(sender, channelName, data) {
                 this._deliver(sender, {
-                    channel: channel,
+                    channel: channelName,
                     data: data
                 });
             },
@@ -748,10 +760,8 @@ module.exports = function() {
                 _startBatch();
                 try {
                     fn();
+                } finally {
                     _endBatch(this);
-                } catch (x) {
-                    _endBatch(this);
-                    throw x;
                 }
             },
 
@@ -867,6 +877,7 @@ module.exports = function() {
         var _channels = {};
         var _sessions = {};
         var _listeners = {};
+        var _context = {};
         var _sweeper;
 
         function _error(reply, error) {
@@ -1301,6 +1312,14 @@ module.exports = function() {
                 return _sessions[id];
             },
             /**
+             * Returns a map of contextual information related to the message processing.
+             *
+             * @returns {object}
+             */
+            get context() {
+                return _context;
+            },
+            /**
              * Closes this CometD server, stopping its activities.
              */
             close: function() {
@@ -1311,6 +1330,17 @@ module.exports = function() {
 
             get _transport() {
                 return _transport;
+            },
+            _setContext: function(context) {
+                if (context) {
+                    _mixin(_context, context);
+                } else {
+                    for (var k in _context) {
+                        if (_context.hasOwnProperty(k)) {
+                            delete _context[k];
+                        }
+                    }
+                }
             },
             _process: function(session, message, callback) {
                 var reply = {

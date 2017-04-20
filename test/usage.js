@@ -196,4 +196,24 @@ describe('usage', function() {
             }, 0);
         });
     });
+
+    it('can access context', function(done) {
+        var channelName = '/service/kal';
+        _cometd.createServerChannel(channelName).addListener('message', function(session, channel, message, callback) {
+            assert.ok(_cometd.context.request);
+            assert.ok(_cometd.context.response);
+            session.deliver(null, channelName, message.data);
+            callback();
+        });
+
+        _client.addListener(channelName, function() {
+            done();
+        });
+
+        _client.handshake(function(hs) {
+            if (hs.successful) {
+                _client.publish(channelName, 'luz');
+            }
+        });
+    });
 });
