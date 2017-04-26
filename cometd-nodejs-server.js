@@ -25,9 +25,9 @@ module.exports = function() {
             for (var i = index; i < array.length; ++i) {
                 var sync = false;
                 var async = false;
-                fn(result, array[i], function(x, r) {
-                    if (x) {
-                        callback(x);
+                fn(result, array[i], function(failure, r) {
+                    if (failure) {
+                        callback(failure);
                     } else {
                         sync = true;
                         result = r;
@@ -227,9 +227,9 @@ module.exports = function() {
         }
 
         function _processMetaHandshake(context, session, message, callback) {
-            cometd._process(session, message, function(x, r) {
-                if (x) {
-                    callback(x);
+            cometd._process(session, message, function(failure, result) {
+                if (failure) {
+                    callback(failure);
                 } else {
                     var reply = message.reply;
                     if (reply.successful) {
@@ -259,12 +259,12 @@ module.exports = function() {
                         });
                         _advise(reply);
                     }
-                    callback(null, r);
+                    callback(null, result);
                 }
             });
         }
 
-        function _processMetaConnect(context, session, message, callback) {
+        function _processMetaConnect(session, message, callback) {
             if (session) {
                 var scheduler = session._scheduler;
                 if (scheduler) {
@@ -272,9 +272,9 @@ module.exports = function() {
                 }
             }
 
-            cometd._process(session, message, function(x) {
-                if (x) {
-                    callback(x);
+            cometd._process(session, message, function(failure) {
+                if (failure) {
+                    callback(failure);
                 } else {
                     var reply = message.reply;
                     if (session && !session._hasMessages && reply.successful) {
@@ -391,9 +391,9 @@ module.exports = function() {
 
                 switch (message.channel) {
                     case '/meta/handshake': {
-                        _processMetaHandshake(context, session, message, function(x) {
-                            if (x) {
-                                c(x);
+                        _processMetaHandshake(context, session, message, function(failure) {
+                            if (failure) {
+                                c(failure);
                             } else {
                                 cometd._log(_prefix, 'reply', message.reply);
                                 local.sendQueue = false;
@@ -405,13 +405,13 @@ module.exports = function() {
                         break;
                     }
                     case '/meta/connect': {
-                        _processMetaConnect(context, session, message, function(x, r) {
-                            if (x) {
-                                c(x);
+                        _processMetaConnect(session, message, function(failure, result) {
+                            if (failure) {
+                                c(failure);
                             } else {
                                 cometd._log(_prefix, 'reply', message.reply);
-                                local.sendQueue = r;
-                                local.sendReplies = r;
+                                local.sendQueue = result;
+                                local.sendReplies = result;
                                 local.scheduleExpiration = true;
                                 c();
                             }
@@ -419,9 +419,9 @@ module.exports = function() {
                         break;
                     }
                     default: {
-                        cometd._process(session, message, function(x) {
-                            if (x) {
-                                c(x);
+                        cometd._process(session, message, function(failure) {
+                            if (failure) {
+                                c(failure);
                             } else {
                                 cometd._log(_prefix, 'reply', message.reply);
                                 local.sendQueue = true;
@@ -432,12 +432,12 @@ module.exports = function() {
                         });
                     }
                 }
-            }, function(x) {
-                if (x) {
-                    cometd._log(_prefix, 'message processing failed', x);
+            }, function(failure) {
+                if (failure) {
+                    cometd._log(_prefix, 'message processing failed', failure);
                     response.statusCode = 500;
                     response.end();
-                    callback(x);
+                    callback(failure);
                 } else {
                     _respond(response, local, session, messages);
                     callback();
@@ -463,8 +463,8 @@ module.exports = function() {
                             _processMessages(request, response, messages, function() {
                                 cometd._setContext(null);
                             });
-                        } catch (x) {
-                            cometd._log(_prefix, x.stack);
+                        } catch (failure) {
+                            cometd._log(_prefix, failure.stack);
                             response.statusCode = 400;
                             response.end();
                         }
@@ -973,12 +973,12 @@ module.exports = function() {
         }
 
         function _metaHandshake(session, message, callback) {
-            _canHandshake(session, message, function(x, r) {
-                if (x) {
-                    callback(x);
+            _canHandshake(session, message, function(failure, result) {
+                if (failure) {
+                    callback(failure);
                 } else {
                     var reply = message.reply;
-                    if (r) {
+                    if (result) {
                         session._handshake();
                         _addServerSession(session, message);
                         reply.successful = true;
@@ -995,7 +995,7 @@ module.exports = function() {
                             advice.reconnect = 'none';
                         }
                     }
-                    callback(null, r);
+                    callback(null, result);
                 }
             });
         }
@@ -1027,10 +1027,10 @@ module.exports = function() {
                     if (processSubscription) {
                         var channel = _self.getServerChannel(subscription);
                         if (!channel) {
-                            _canCreate(session, message, subscription, function(x, r) {
-                                if (x) {
-                                    c(x);
-                                } else if (r) {
+                            _canCreate(session, message, subscription, function(failure, result) {
+                                if (failure) {
+                                    c(failure);
+                                } else if (result) {
                                     channel = _self.createServerChannel(subscription);
                                     _canSubscribe(session, message, channel, c);
                                 } else {
@@ -1043,10 +1043,10 @@ module.exports = function() {
                     } else {
                         c(null, false);
                     }
-                }, function(x, r) {
-                    if (x) {
-                        callback(x);
-                    } else if (r) {
+                }, function(failure, result) {
+                    if (failure) {
+                        callback(failure);
+                    } else if (result) {
                         _asyncFoldLeft(subscriptions, true, function(processSubscription, subscription, c) {
                             if (processSubscription) {
                                 var channel = _self.getServerChannel(subscription);
@@ -1054,11 +1054,11 @@ module.exports = function() {
                             } else {
                                 c(null, false);
                             }
-                        }, function(xx, rr) {
-                            if (xx) {
-                                callback(xx);
+                        }, function(failure2, result2) {
+                            if (failure2) {
+                                callback(failure2);
                             } else {
-                                if (rr) {
+                                if (result2) {
                                     reply.successful = true;
                                 } else {
                                     _error(reply, '403::subscribe_failed');
@@ -1096,18 +1096,18 @@ module.exports = function() {
                     } else {
                         c(null, false);
                     }
-                }, function(x, r) {
-                    if (x) {
-                        callback(x);
+                }, function(failure, result) {
+                    if (failure) {
+                        callback(failure);
                     } else {
-                        if (r) {
+                        if (result) {
                             reply.successful = true;
                         } else {
-                            _error(reply, '403::unsubscribe_failed')
+                            _error(reply, '403::unsubscribe_failed');
                         }
                         callback();
                     }
-                })
+                });
             } else {
                 _error(reply, "403::subscription_missing");
                 callback();
@@ -1136,14 +1136,14 @@ module.exports = function() {
                     _self._log('cometd.server', 'notifying', listeners.length, 'listeners on', channel.name);
                     _asyncFoldLeft(listeners, true, function(processListener, listener, cc) {
                         if (processListener) {
-                            listener(session, ch, message, function(x, r) {
-                                if (x) {
-                                    cc(x);
+                            listener(session, ch, message, function(failure, result) {
+                                if (failure) {
+                                    cc(failure);
                                 } else {
-                                    if (r === undefined) {
-                                        r = true;
+                                    if (result === undefined) {
+                                        result = true;
                                     }
-                                    cc(null, r);
+                                    cc(null, result);
                                 }
                             });
                         } else {
@@ -1216,10 +1216,10 @@ module.exports = function() {
             if (channel.meta) {
                 _self._publish(channel, session, message, callback);
             } else {
-                _canPublish(channel, session, message, function(x, r) {
-                    if (x) {
-                        callback(x);
-                    } else if (r) {
+                _canPublish(channel, session, message, function(failure, result) {
+                    if (failure) {
+                        callback(failure);
+                    } else if (result) {
                         reply.successful = true;
                         _self._publish(channel, session, message, callback);
                     } else {
@@ -1396,10 +1396,10 @@ module.exports = function() {
                         session._cancelExpiration(channelName === '/meta/connect');
                         var channel = _channels[channelName];
                         if (!channel) {
-                            _canCreate(session, message, channelName, function(x, r) {
-                                if (x) {
-                                    callback(x);
-                                } else if (r) {
+                            _canCreate(session, message, channelName, function(failure, result) {
+                                if (failure) {
+                                    callback(failure);
+                                } else if (result) {
                                     channel = _self.createServerChannel(channelName);
                                     _process2(channel, session, message, callback);
                                 } else {
@@ -1424,10 +1424,10 @@ module.exports = function() {
                     delete message.id;
                     delete message.clientId;
                 }
-                _notifyListeners(channel, session, message, function(x, r) {
-                    if (x) {
-                        callback(x);
-                    } else if (r) {
+                _notifyListeners(channel, session, message, function(failure, result) {
+                    if (failure) {
+                        callback(failure);
+                    } else if (result) {
                         _publish2(channel, session, message, callback);
                     } else {
                         callback();
