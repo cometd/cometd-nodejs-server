@@ -264,7 +264,7 @@ module.exports = function() {
             });
         }
 
-        function _processMetaConnect(session, message, callback) {
+        function _processMetaConnect(session, message, canSuspend, callback) {
             if (session) {
                 var scheduler = session._scheduler;
                 if (scheduler) {
@@ -277,7 +277,7 @@ module.exports = function() {
                     callback(failure);
                 } else {
                     var reply = message.reply;
-                    if (session && !session._hasMessages && reply.successful) {
+                    if (canSuspend && session && !session._hasMessages && reply.successful) {
                         var allowSuspend = _addBrowserMetaConnect(session);
                         if (allowSuspend) {
                             if (message.advice) {
@@ -376,7 +376,11 @@ module.exports = function() {
                 sessions: _findSessions(cookies)
             };
 
-            var local = {};
+            var local = {
+                sendQueue: false,
+                sendReplies: false,
+                scheduleExpiration: false
+            };
 
             var session = null;
             _asyncFoldLeft(messages, undefined, function(y, message, c) {
@@ -395,23 +399,28 @@ module.exports = function() {
                             if (failure) {
                                 c(failure);
                             } else {
-                                cometd._log(_prefix, 'reply', message.reply);
-                                local.sendQueue = false;
-                                local.sendReplies = true;
-                                local.scheduleExpiration = true;
-                                c();
+                                if (messages.length > 1) {
+                                    c(new Error('protocol violation'));
+                                } else {
+                                    cometd._log(_prefix, 'reply', message.reply);
+                                    local.sendQueue = false;
+                                    local.sendReplies = true;
+                                    local.scheduleExpiration = true;
+                                    c();
+                                }
                             }
                         });
                         break;
                     }
                     case '/meta/connect': {
-                        _processMetaConnect(session, message, function(failure, result) {
+                        var canSuspend = messages.length === 1;
+                        _processMetaConnect(session, message, canSuspend, function(failure, result) {
                             if (failure) {
                                 c(failure);
                             } else {
                                 cometd._log(_prefix, 'reply', message.reply);
-                                local.sendQueue = result;
-                                local.sendReplies = result;
+                                local.sendQueue = !canSuspend || result;
+                                local.sendReplies = local.sendQueue;
                                 local.scheduleExpiration = true;
                                 c();
                             }
@@ -426,7 +435,7 @@ module.exports = function() {
                                 cometd._log(_prefix, 'reply', message.reply);
                                 local.sendQueue = true;
                                 local.sendReplies = true;
-                                local.scheduleExpiration = false;
+                                // Leave scheduleExpiration unchanged.
                                 c();
                             }
                         });
