@@ -157,7 +157,7 @@ describe('usage', function() {
         _client.handshake(function(hs) {
             if (hs.successful) {
                 var session = _cometd.getServerSession(hs.clientId);
-                session.addListener('suspend', function() {
+                session.addListener('suspended', function() {
                     _cometd.getServerChannel(channelName).publish(null, 'data');
                 });
                 _client.subscribe(channelName, function(msg) {

@@ -88,7 +88,7 @@ describe('usage', function() {
         client1.handshake(function(hs1) {
             if (hs1.successful) {
                 var session = _cometd.getServerSession(hs1.clientId);
-                session.addListener('suspend', function() {
+                session.addListener('suspended', function() {
                     client2.handshake();
                 });
             }

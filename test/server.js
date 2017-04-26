@@ -288,7 +288,7 @@ describe('server', function() {
                 var reply = replies[0];
                 assert.strictEqual(reply.successful, true);
                 var session = _cometd.getServerSession(reply.clientId);
-                session.addListener('remove', function(s, timeout) {
+                session.addListener('removed', function(s, timeout) {
                     assert.strictEqual(s, session);
                     assert.strictEqual(timeout, true);
                     done();
@@ -320,7 +320,7 @@ describe('server', function() {
                         var reply2 = replies2[0];
                         assert.strictEqual(reply2.successful, true);
                         var session = _cometd.getServerSession(sessionId);
-                        session.addListener('remove', function(s, timeout) {
+                        session.addListener('removed', function(s, timeout) {
                             assert.strictEqual(s, session);
                             assert.strictEqual(timeout, true);
                             done();

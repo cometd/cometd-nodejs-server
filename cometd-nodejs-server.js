@@ -247,7 +247,7 @@ module.exports = function() {
                         list.push(session);
                         session._browserId = browserId;
 
-                        session.addListener('remove', function() {
+                        session.addListener('removed', function() {
                             var i = list.indexOf(session);
                             if (i >= 0) {
                                 list.splice(i, 1);
@@ -293,8 +293,8 @@ module.exports = function() {
                                             this._timeout = null;
                                             session._scheduler = null;
                                             cometd._setContext(context);
-                                            _notifyEvent(session.listeners('resume'), [session, message, false]);
-                                            cometd._log(_prefix, 'resume wakeup', message);
+                                            _notifyEvent(session.listeners('resumed'), [session, message, false]);
+                                            cometd._log(_prefix, 'resumed wakeup', message);
                                             this._flush();
                                         }
                                     },
@@ -314,8 +314,8 @@ module.exports = function() {
                                             this._timeout = null;
                                             session._scheduler = null;
                                             cometd._setContext(context);
-                                            _notifyEvent(session.listeners('resume'), [session, message, true]);
-                                            cometd._log(_prefix, 'resume expire', message);
+                                            _notifyEvent(session.listeners('resumed'), [session, message, true]);
+                                            cometd._log(_prefix, 'resumed expire', message);
                                             this._flush();
                                         }
                                     },
@@ -333,8 +333,8 @@ module.exports = function() {
                                     scheduler._expired.call(scheduler);
                                 }, timeout);
                                 session._scheduler = scheduler;
-                                _notifyEvent(session.listeners('suspend'), [session, message, timeout]);
-                                cometd._log(_prefix, 'suspend', message);
+                                _notifyEvent(session.listeners('suspended'), [session, message, timeout]);
+                                cometd._log(_prefix, 'suspended', message);
                                 callback(null, false);
                             } else {
                                 _removeBrowserMetaConnect(session);
@@ -838,7 +838,7 @@ module.exports = function() {
                 _asyncFoldLeft(_subscriptions, undefined, function(y, s, c) {
                     s._unsubscribe(self, null, c);
                 }, function() {
-                    _notifyEvent(_listeners['remove'], [self, timeout]);
+                    _notifyEvent(_listeners['removed'], [self, timeout]);
                 });
             },
             _flush: function(callback) {
