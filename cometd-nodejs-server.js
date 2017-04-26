@@ -185,7 +185,7 @@ module.exports = function() {
                 response.end(']');
             }
         }
-        
+
         function _addBrowserMetaConnect(session) {
             var maxSessionsPerBrowser = _self.option('maxSessionsPerBrowser');
             if (maxSessionsPerBrowser < 0) {
@@ -504,6 +504,13 @@ module.exports = function() {
     /**
      * Representation of a channel.
      *
+     * Events emitted:
+     * <ul>
+     *   <li><code>subscribed</code>, when a ServerSession has subscribed to this channel</li>
+     *   <li><code>message</code>, when a message arrives on this channel</li>
+     *   <li><code>unsubscribed</code>, when a ServerSession has unsubscribed from this channel</li>
+     * </ul>
+     *
      * @param cometd the CometD server object
      * @param name the channel name
      * @returns {ServerChannel} a ServerChannel object
@@ -664,6 +671,15 @@ module.exports = function() {
 
     /**
      * Server-side representation of a remote client.
+     *
+     * Events emitted:
+     * <ul>
+     *   <li><code>suspended</code>, when a /meta/connect is suspended by the server</li>
+     *   <li><code>resumed</code>, when a /meta/connect is resumed by the server</li>
+     *   <li><code>removed</code>, when this ServerSession is removed from the server, either explicitly by
+     *   disconnecting or because of a timeout</li>
+     * </ul>
+     *
      *
      * @param cometd the CometD server object
      * @param id the session id
@@ -863,6 +879,19 @@ module.exports = function() {
     }
 
     /**
+     * The server-side message broker.
+     *
+     * Events emitted:
+     * <ul>
+     *   <li><code>sessionAdded</code>, when a remote session, after a successful handshake, is added to this object</li>
+     *   <li><code>sessionRemoved</code>, when a remote session is removed from this object, either explicitly by
+     *   disconnecting, or because of a timeout</li>
+     *   <li><code>channelAdded</code>, when a ServerChannel is added to this object</li>
+     *   <li><code>channelRemoved</code>, when a ServerChannel is removed from this object</li>
+     *   <li><code>subscribed</code>, when a ServerSession has subscribed to a ServerChannel</li>
+     *   <li><code>unsubscribed</code>, when a ServerSession has unsubscribed from a ServerChannel</li>
+     * </ul>
+     *
      * @param options the configuration options
      * @returns {CometDServer} a new CometD server
      * @constructor
