@@ -147,7 +147,7 @@ module.exports = function() {
             if (local.sendQueue || local.sendReplies) {
                 var queue = [];
                 response.statusCode = 200;
-                response.setHeader('Context-Type', 'application/json');
+                response.setHeader('Content-Type', 'application/json');
                 response.write('[');
 
                 if (session && local.sendQueue) {
