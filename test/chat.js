@@ -29,6 +29,10 @@ describe('chat', function() {
     var _serviceChannel = '/service/chat';
 
     it('chats', function(done) {
+        var delay = 1000;
+        _cometd.options.multiSessionInterval = delay;
+        this.timeout(2 * delay);
+
         var client1 = new clientLib.CometD();
         client1.configure({
             url: _uri
@@ -41,6 +45,7 @@ describe('chat', function() {
 
         // The second client must handshake after the first client to avoid
         // that the server generates two different BAYEUX_BROWSER cookies.
+        // The second client will be in 'multiple-clients' mode.
         client1.handshake(function(hs1) {
             if (hs1.successful) {
                 client2.handshake(function(hs2) {
