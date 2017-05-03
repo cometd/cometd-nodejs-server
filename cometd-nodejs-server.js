@@ -145,44 +145,44 @@ module.exports = function() {
 
         function _respond(response, local, session, messages) {
             if (local.sendQueue || local.sendReplies) {
-                var queue = [];
                 response.statusCode = 200;
                 response.setHeader('Content-Type', 'application/json');
-                response.write('[');
 
+                var content = '[';
+                var queue = [];
                 if (session && local.sendQueue) {
                     queue = session._drainQueue();
-                    cometd._log(_prefix, 'sending', queue.length, 'queued messages');
+                    cometd._log(_prefix, 'sending', queue.length, 'queued messages for', session.id);
                     queue.forEach(function(m, i) {
                         if (i > 0) {
-                            response.write(',');
+                            content += ',';
                         }
                         var json = m._json;
                         if (!json) {
                             json = JSON.stringify(m);
                         }
-                        response.write(json);
+                        content += json;
                     });
                 }
-
-                if (session && local.scheduleExpiration) {
-                    session._scheduleExpiration(_self.option('interval'));
-                }
-
                 if (local.sendReplies) {
                     if (queue.length > 0) {
-                        response.write(',');
+                        content += ',';
                     }
-                    cometd._log(_prefix, 'sending', messages.length, 'replies');
+                    cometd._log(_prefix, 'sending', messages.length, 'replies for', session.id);
                     messages.forEach(function(m, i) {
                         if (i > 0) {
-                            response.write(',');
+                            content += ',';
                         }
-                        response.write(JSON.stringify(m.reply));
+                        content += JSON.stringify(m.reply);
                     });
                 }
+                content += ']';
 
-                response.end(']');
+                response.end(content, 'utf8', function() {
+                    if (session && local.scheduleExpiration) {
+                        session._scheduleExpiration(_self.option('interval'));
+                    }
+                });
             }
         }
 
