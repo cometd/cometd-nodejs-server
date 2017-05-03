@@ -168,7 +168,7 @@ module.exports = function() {
                     if (queue.length > 0) {
                         content += ',';
                     }
-                    cometd._log(_prefix, 'sending', messages.length, 'replies for', session.id);
+                    cometd._log(_prefix, 'sending', messages.length, 'replies for', session ? session.id : 'unknown session');
                     messages.forEach(function(m, i) {
                         if (i > 0) {
                             content += ',';
@@ -763,10 +763,12 @@ module.exports = function() {
              * @param data the message data
              */
             deliver: function(sender, channelName, data) {
-                this._deliver(sender, {
+                var message = {
                     channel: channelName,
                     data: data
-                });
+                };
+                cometd._log('cometd.session', 'delivering', message, 'to', this.id);
+                this._deliver(sender, message);
             },
             /**
              * @returns {Array.<ServerChannel>} the channels this session is subscribed to
@@ -1459,9 +1461,9 @@ module.exports = function() {
                 }
             },
             _log: function _log(tag, format, args) {
-                args = [].slice.call(arguments);
-                args.splice(0, 2, new Date().toISOString() + ':' + tag + ': ' + format);
                 if (this.options.logLevel === 'debug') {
+                    args = [].slice.call(arguments);
+                    args.splice(0, 2, new Date().toISOString() + ':' + tag + ': ' + format);
                     console.log.apply(console, args);
                 }
             }
