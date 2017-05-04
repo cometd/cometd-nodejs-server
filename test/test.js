@@ -4,7 +4,7 @@ var cometd = require('..');
 require('cometd-nodejs-client').adapt();
 var clientLib = require('cometd');
 
-describe('usage', function() {
+describe('test', function() {
     var _cometd;
     var _server;
     var _client;
