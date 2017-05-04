@@ -143,7 +143,7 @@ module.exports = function() {
             return null;
         }
 
-        function _respond(response, local, session, messages) {
+        function _respond(response, local, session, messages, callback) {
             if (local.sendQueue || local.sendReplies) {
                 response.statusCode = 200;
                 response.setHeader('Content-Type', 'application/json');
@@ -168,7 +168,7 @@ module.exports = function() {
                     if (queue.length > 0) {
                         content += ',';
                     }
-                    cometd._log(_prefix, 'sending', messages.length, 'replies for', session ? session.id : 'unknown session');
+                    cometd._log(_prefix, 'sending', messages.length, 'replies for session', session ? session.id : 'null');
                     messages.forEach(function(m, i) {
                         if (i > 0) {
                             content += ',';
@@ -178,10 +178,11 @@ module.exports = function() {
                 }
                 content += ']';
 
-                response.end(content, 'utf8', function() {
+                response.end(content, 'utf8', function(failure) {
                     if (session && local.scheduleExpiration) {
                         session._scheduleExpiration(_self.option('interval'));
                     }
+                    callback(failure);
                 });
             }
         }
@@ -264,7 +265,7 @@ module.exports = function() {
             });
         }
 
-        function _processMetaConnect(session, message, canSuspend, callback) {
+        function _processMetaConnect(session, message, canSuspend, finish, callback) {
             if (session) {
                 var scheduler = session._scheduler;
                 if (scheduler) {
@@ -276,8 +277,9 @@ module.exports = function() {
                 if (failure) {
                     callback(failure);
                 } else {
+                    var maySuspend = session && (!session._hasMessages || session._isBatching);
                     var reply = message.reply;
-                    if (canSuspend && session && !session._hasMessages && reply.successful) {
+                    if (canSuspend && maySuspend && reply.successful) {
                         var allowSuspend = _addBrowserMetaConnect(session);
                         if (allowSuspend) {
                             if (message.advice) {
@@ -292,7 +294,6 @@ module.exports = function() {
                                             clearTimeout(this._timeout);
                                             this._timeout = null;
                                             session._scheduler = null;
-                                            cometd._setContext(context);
                                             _notifyEvent(session.listeners('resumed'), [session, message, false]);
                                             cometd._log(_prefix, 'resumed wakeup', message);
                                             this._flush();
@@ -307,13 +308,13 @@ module.exports = function() {
                                             var response = context.response;
                                             response.statusCode = 408;
                                             response.end();
+                                            finish();
                                         }
                                     },
                                     _expired: function() {
                                         if (this._timeout) {
                                             this._timeout = null;
                                             session._scheduler = null;
-                                            cometd._setContext(context);
                                             _notifyEvent(session.listeners('resumed'), [session, message, true]);
                                             cometd._log(_prefix, 'resumed expire', message);
                                             this._flush();
@@ -325,16 +326,15 @@ module.exports = function() {
                                             sendQueue: true,
                                             sendReplies: true,
                                             scheduleExpiration: true
-                                        }, session, [message]);
-                                        cometd._setContext(null);
+                                        }, session, [message], finish);
                                     }
                                 };
                                 scheduler._timeout = setTimeout(function() {
                                     scheduler._expired.call(scheduler);
                                 }, timeout);
                                 session._scheduler = scheduler;
-                                _notifyEvent(session.listeners('suspended'), [session, message, timeout]);
                                 cometd._log(_prefix, 'suspended', message);
+                                _notifyEvent(session.listeners('suspended'), [session, message, timeout]);
                                 callback(null, false);
                             } else {
                                 _removeBrowserMetaConnect(session);
@@ -364,16 +364,30 @@ module.exports = function() {
             });
         }
 
-        function _processMessages(request, response, messages, callback) {
+        function _processMessages(request, response, messages, finish) {
             cometd._log(_prefix, 'processing', messages.length, 'messages');
 
+            if (messages.length === 0) {
+                response.statusCode = 400;
+                response.end();
+                finish();
+                return;
+            }
+
             var cookies = _parseCookies(request.headers.cookie);
+            var sessions = _findSessions(cookies);
+            var message = messages[0];
+            var session = _findSession(sessions, message);
+            cometd._log(_prefix, 'session', session ? session.id : 'null');
+            var batch = session && message.channel !== '/meta/connect';
+            if (batch) {
+                session._startBatch();
+            }
+
             var context = {
                 request: request,
                 response: response,
-                messages: messages,
-                cookies: cookies,
-                sessions: _findSessions(cookies)
+                cookies: cookies
             };
 
             var local = {
@@ -382,17 +396,8 @@ module.exports = function() {
                 scheduleExpiration: false
             };
 
-            var session = null;
             _asyncFoldLeft(messages, undefined, function(y, message, c) {
                 cometd._log(_prefix, 'processing', message);
-
-                if (session === null) {
-                    session = _findSession(context.sessions, message);
-                } else if (session.id !== message.clientId) {
-                    session = null;
-                }
-                cometd._log(_prefix, 'session', session ? session.id : 'null');
-
                 switch (message.channel) {
                     case '/meta/handshake': {
                         _processMetaHandshake(context, session, message, function(failure) {
@@ -414,7 +419,7 @@ module.exports = function() {
                     }
                     case '/meta/connect': {
                         var canSuspend = messages.length === 1;
-                        _processMetaConnect(session, message, canSuspend, function(failure, result) {
+                        _processMetaConnect(session, message, canSuspend, finish, function(failure, result) {
                             if (failure) {
                                 c(failure);
                             } else {
@@ -446,10 +451,12 @@ module.exports = function() {
                     cometd._log(_prefix, 'message processing failed', failure);
                     response.statusCode = 500;
                     response.end();
-                    callback(failure);
+                    finish(failure);
                 } else {
-                    _respond(response, local, session, messages);
-                    callback();
+                    _respond(response, local, session, messages, finish);
+                    if (batch) {
+                        session._endBatch();
+                    }
                 }
             });
         }
@@ -712,17 +719,6 @@ module.exports = function() {
             // TODO: queue listeners ?
         }
 
-        function _startBatch() {
-            ++_batch;
-        }
-
-        function _endBatch(session) {
-            --_batch;
-            if (_batch === 0) {
-                session._flush();
-            }
-        }
-
         return {
             /**
              * @returns {string} the session id
@@ -784,19 +780,18 @@ module.exports = function() {
              * @param fn the batching function
              */
             batch: function(fn) {
-                _startBatch();
+                this._startBatch();
                 try {
                     fn();
                 } finally {
-                    _endBatch(this);
+                    this._endBatch();
                 }
             },
 
             // PRIVATE APIs.
 
             _deliver: function(sender, message) {
-                // TODO: avoid loops
-
+                // TODO: avoid delivering to self ?
                 _offer(message);
                 if (_batch === 0) {
                     this._flush();
@@ -868,12 +863,9 @@ module.exports = function() {
                     _notifyEvent(_listeners['removed'], [self, timeout]);
                 });
             },
-            _flush: function(callback) {
+            _flush: function() {
                 if (this._scheduler) {
                     this._scheduler.resume();
-                }
-                if (callback) {
-                    callback();
                 }
             },
             _sweep: function() {
@@ -885,6 +877,18 @@ module.exports = function() {
                         cometd._removeServerSession(this, true);
                     }
                 }
+            },
+            _startBatch: function() {
+                ++_batch;
+            },
+            _endBatch: function() {
+                --_batch;
+                if (_batch === 0 && this._hasMessages) {
+                    this._flush();
+                }
+            },
+            get _isBatching() {
+                return _batch > 0;
             }
         };
     }
@@ -1129,7 +1133,8 @@ module.exports = function() {
             var reply = message.reply;
             reply.successful = true;
             _self._removeServerSession(session, false);
-            session._flush(callback);
+            session._flush();
+            callback();
         }
 
         function _notifyListeners(channel, session, message, callback) {

@@ -341,4 +341,151 @@ describe('server', function() {
             '"supportedConnectionTypes": ["long-polling"]' +
             '}]');
     });
+
+    it('holds /meta/connect when another request is being processed', function(done) {
+        var timeout = 2000;
+        _cometd.options.timeout = timeout;
+        this.timeout(2 * timeout);
+
+        http.request(newRequest(), function(r1) {
+            receiveResponse(r1, function(replies1) {
+                var reply1 = replies1[0];
+                assert.strictEqual(reply1.successful, true);
+                var sessionId = reply1.clientId;
+                var cookie = extractBrowserCookie(r1);
+                var connect1 = newRequest();
+                connect1.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                http.request(connect1, function(r2) {
+                    receiveResponse(r2, function(replies2) {
+                        var reply2 = replies2[0];
+                        assert.strictEqual(reply2.successful, true);
+                        var channelName = '/baz';
+                        _cometd.createServerChannel(channelName).addListener('message', function(session, channel, message, callback) {
+                            // Put a message in the session queue.
+                            session.deliver(null, channelName, 'hello2');
+                            // Finish the processing of this message when the /meta/connect is suspended.
+                            session.addListener('suspended', function() {
+                                callback();
+                            });
+                            // Send the /meta/connect that must be held,
+                            // even if there are messages in the queue.
+                            var connect2 = newRequest();
+                            connect2.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                            var start = Date.now();
+                            http.request(connect2, function(r4) {
+                                receiveResponse(r4, function(replies4) {
+                                    var reply4 = replies4[0];
+                                    assert.strictEqual(reply4.successful, true);
+                                    var elapsed = Date.now() - start;
+                                    assert(elapsed > timeout / 2);
+                                    done();
+                                });
+                            }).end('[{' +
+                                '"channel": "/meta/connect",' +
+                                '"clientId": "' + sessionId + '",' +
+                                '"connectionType": "long-polling"' +
+                                '}]');
+                        });
+                        var publish = newRequest();
+                        publish.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                        http.request(publish, function(r3) {
+                            receiveResponse(r3, function(replies3) {
+                                assert.strictEqual(replies3.length, 2);
+                            });
+                        }).end('[{' +
+                            '"channel": "' + channelName + '",' +
+                            '"clientId": "' + sessionId + '",' +
+                            '"data": "hello1"' +
+                            '}]');
+                    });
+                }).end('[{' +
+                    '"channel": "/meta/connect",' +
+                    '"clientId": "' + sessionId + '",' +
+                    '"connectionType": "long-polling",' +
+                    '"advice": {' +
+                    '  "timeout": 0' +
+                    '}' +
+                    '}]');
+            });
+        }).end('[{' +
+            '"channel": "/meta/handshake",' +
+            '"version": "1.0",' +
+            '"supportedConnectionTypes": ["long-polling"]' +
+            '}]');
+    });
+
+    it('holds /meta/connect when another request arrives', function(done) {
+        var timeout = 2000;
+        _cometd.options.timeout = timeout;
+        this.timeout(2 * timeout);
+
+        // _cometd.options.logLevel = 'debug';
+
+        http.request(newRequest(), function(r1) {
+            receiveResponse(r1, function(replies1) {
+                var reply1 = replies1[0];
+                assert.strictEqual(reply1.successful, true);
+                var sessionId = reply1.clientId;
+                var cookie = extractBrowserCookie(r1);
+                var connect1 = newRequest();
+                connect1.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                http.request(connect1, function(r2) {
+                    receiveResponse(r2, function(replies2) {
+                        var reply2 = replies2[0];
+                        assert.strictEqual(reply2.successful, true);
+                        var channelName = '/baz';
+                        _cometd.createServerChannel(channelName).addListener('message', function(session, channel, message, callback) {
+                            // Put a message in the session queue.
+                            session.deliver(null, channelName, 'hello2');
+                            callback();
+                        });
+
+                        // When the /meta/connect is suspended, send the other request.
+                        _cometd.getServerSession(sessionId).addListener('suspended', function() {
+                            var publish = newRequest();
+                            publish.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                            http.request(publish, function(r4) {
+                                receiveResponse(r4, function(replies4) {
+                                    assert.strictEqual(replies4.length, 2);
+                                });
+                            }).end('[{' +
+                                '"channel": "' + channelName + '",' +
+                                '"clientId": "' + sessionId + '",' +
+                                '"data": "hello1"' +
+                                '}]');
+                        });
+
+                        // Send the /meta/connect that will be held.
+                        var connect2 = newRequest();
+                        connect2.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                        var start = Date.now();
+                        http.request(connect2, function(r3) {
+                            receiveResponse(r3, function(replies3) {
+                                var reply3 = replies3[0];
+                                assert.strictEqual(reply3.successful, true);
+                                var elapsed = Date.now() - start;
+                                assert(elapsed > timeout / 2);
+                                done();
+                            });
+                        }).end('[{' +
+                            '"channel": "/meta/connect",' +
+                            '"clientId": "' + sessionId + '",' +
+                            '"connectionType": "long-polling"' +
+                            '}]');
+                    });
+                }).end('[{' +
+                    '"channel": "/meta/connect",' +
+                    '"clientId": "' + sessionId + '",' +
+                    '"connectionType": "long-polling",' +
+                    '"advice": {' +
+                    '  "timeout": 0' +
+                    '}' +
+                    '}]');
+            });
+        }).end('[{' +
+            '"channel": "/meta/handshake",' +
+            '"version": "1.0",' +
+            '"supportedConnectionTypes": ["long-polling"]' +
+            '}]');
+    });
 });
