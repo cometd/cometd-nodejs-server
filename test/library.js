@@ -2,17 +2,17 @@ var assert = require('assert');
 var cometd = require('..');
 
 describe('library', function() {
-    it('factory method exported', function() {
+    it('exports factory method', function() {
         assert.ok(cometd.createCometDServer);
     });
 
-    it('constructs objects', function() {
+    it('constructs object', function() {
         var server = cometd.createCometDServer();
         assert.ok(server);
         server.close();
     });
 
-    it('constructor with options', function() {
+    it('constructs object with options', function() {
         var options = {};
         var server = cometd.createCometDServer(options);
         assert.notStrictEqual(server.options, options);

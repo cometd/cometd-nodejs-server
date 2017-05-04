@@ -67,7 +67,7 @@ describe('server', function() {
         return null;
     }
 
-    it('method GET not accepted', function(done) {
+    it('does not accept GET method', function(done) {
         var request = newRequest();
         request.method = 'GET';
         http.request(request, function(response) {
@@ -76,14 +76,14 @@ describe('server', function() {
         }).end();
     });
 
-    it('non-JSON content not accepted', function(done) {
+    it('does not accept non-JSON content', function(done) {
         http.request(newRequest(), function(response) {
             assert.strictEqual(response.statusCode, 400);
             done();
         }).end('a');
     });
 
-    it('bad first message yields unknown session', function(done) {
+    it('yields unknown session on bad first message', function(done) {
         http.request(newRequest(), function(response) {
             receiveResponse(response, function(replies) {
                 assert.strictEqual(replies.length, 1);
@@ -95,7 +95,7 @@ describe('server', function() {
         }).end('[{}]');
     });
 
-    it('/meta/handshake message is replied', function(done) {
+    it('replies to /meta/handshake message', function(done) {
         http.request(newRequest(), function(response) {
             receiveResponse(response, function(replies) {
                 assert.strictEqual(replies.length, 1);
@@ -112,7 +112,7 @@ describe('server', function() {
             '}]');
     });
 
-    it('/meta/connect message is replied', function(done) {
+    it('replies to /meta/connect message', function(done) {
         http.request(newRequest(), function(r1) {
             receiveResponse(r1, function(replies1) {
                 var reply1 = replies1[0];
@@ -143,7 +143,7 @@ describe('server', function() {
             '}]');
     });
 
-    it('/meta/subscribe message is replied', function(done) {
+    it('replies to /meta/subscribe message', function(done) {
         http.request(newRequest(), function(r1) {
             receiveResponse(r1, function(replies1) {
                 var reply1 = replies1[0];
@@ -171,7 +171,7 @@ describe('server', function() {
             '}]');
     });
 
-    it('/meta/unsubscribe message is replied', function(done) {
+    it('replies to /meta/unsubscribe message', function(done) {
         http.request(newRequest(), function(r1) {
             receiveResponse(r1, function(replies1) {
                 var reply1 = replies1[0];
@@ -199,7 +199,7 @@ describe('server', function() {
             '}]');
     });
 
-    it('/meta/disconnect message is replied', function(done) {
+    it('replies to /meta/disconnect message', function(done) {
         http.request(newRequest(), function(r1) {
             receiveResponse(r1, function(replies1) {
                 var reply1 = replies1[0];
@@ -226,7 +226,7 @@ describe('server', function() {
             '}]');
     });
 
-    it('/meta/connect is held', function(done) {
+    it('holds /meta/connect', function(done) {
         var timeout = 2000;
         _cometd.options.timeout = timeout;
         this.timeout(2 * timeout);

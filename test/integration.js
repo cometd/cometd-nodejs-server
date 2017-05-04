@@ -4,7 +4,7 @@ var cometd = require('..');
 require('cometd-nodejs-client').adapt();
 var clientLib = require('cometd');
 
-describe('test', function() {
+describe('integration', function() {
     var _cometd;
     var _server;
     var _client;
@@ -61,7 +61,7 @@ describe('test', function() {
         });
     });
 
-    it('multiple sessions', function(done) {
+    it('handles multiple sessions', function(done) {
         var client1 = new clientLib.CometD();
         client1.configure({
             url: _uri

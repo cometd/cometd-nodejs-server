@@ -30,7 +30,7 @@ describe('usage', function() {
         _cometd.close();
     });
 
-    it('/meta/handshake listener notified', function(done) {
+    it('notifies /meta/handshake listener', function(done) {
         var metaHandshake = _cometd.getServerChannel('/meta/handshake');
         metaHandshake.addListener('message', function(session, channel, message, callback) {
             assert.ok(session.id);
@@ -47,7 +47,7 @@ describe('usage', function() {
         });
     });
 
-    it('broadcast channel listener notified', function(done) {
+    it('notifies broadcast channel listener', function(done) {
         var channelName = '/foo';
         var broadcast = _cometd.createServerChannel(channelName);
         broadcast.addListener('message', function(session, channel, message, callback) {
@@ -71,7 +71,7 @@ describe('usage', function() {
         });
     });
 
-    it('subscription is recorded', function(done) {
+    it('records subscription', function(done) {
         var channelName = '/bar';
         _client.handshake(function(reply) {
             if (reply.successful) {
@@ -152,7 +152,7 @@ describe('usage', function() {
         });
     });
 
-    it('server-side publish is received via /meta/connect', function(done) {
+    it('receives server-side publish via /meta/connect', function(done) {
         var channelName = '/hua';
         _client.handshake(function(hs) {
             if (hs.successful) {
@@ -170,7 +170,7 @@ describe('usage', function() {
         });
     });
 
-    it('handshake policy', function(done) {
+    it('invokes handshake policy', function(done) {
         _cometd.policy = {
             canHandshake: function(session, message, callback) {
                 callback(null, message.credentials);
@@ -197,7 +197,7 @@ describe('usage', function() {
         });
     });
 
-    it('can access context', function(done) {
+    it('provides access to HTTP context', function(done) {
         var channelName = '/service/kal';
         _cometd.createServerChannel(channelName).addListener('message', function(session, channel, message, callback) {
             assert.ok(_cometd.context.request);
