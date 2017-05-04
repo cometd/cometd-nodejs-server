@@ -1,6 +1,6 @@
 {
   "name": "cometd-nodejs-server",
-  "version": "1.0.0-BETA2-SNAPSHOT",
+  "version": "1.0.0-BETA2",
   "description": "CometD server for NodeJS",
   "keywords": ["node", "nodejs", "cometd"],
   "homepage": "https://cometd.org",
