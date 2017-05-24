@@ -454,9 +454,9 @@ module.exports = function() {
                     finish(failure);
                 } else {
                     _respond(response, local, session, messages, finish);
-                    if (batch) {
-                        session._endBatch();
-                    }
+                }
+                if (batch) {
+                    session._endBatch();
                 }
             });
         }
