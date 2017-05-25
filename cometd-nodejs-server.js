@@ -782,6 +782,21 @@ module.exports = function() {
                     this._endBatch();
                 }
             },
+            /**
+             * Disconnects this session from the server side.
+             *
+             * @returns {boolean} whether the session has been disconnected
+             */
+            disconnect: function() {
+                var removed = cometd._removeServerSession(this, false);
+                if (removed) {
+                    this._deliver(this, {
+                        successful: true,
+                        channel: '/meta/disconnect'
+                    });
+                }
+                return removed;
+            },
 
             // PRIVATE APIs.
 
@@ -1452,6 +1467,7 @@ module.exports = function() {
                     _notifyEvent(_self.listeners('sessionRemoved'), [session, timeout]);
                     session._removed(timeout);
                 }
+                return existing;
             },
             _removeServerChannel: function(channel) {
                 var existing = _channels[channel.name];
@@ -1459,6 +1475,7 @@ module.exports = function() {
                     delete _channels[channel.name];
                     _notifyEvent(_self.listeners('channelRemoved'), [channel]);
                 }
+                return existing;
             },
             _log: function _log(tag, format, args) {
                 if (this.options.logLevel === 'debug') {

@@ -94,4 +94,37 @@ describe('integration', function() {
             }
         });
     });
+
+    it('handles server-side disconnects', function(done) {
+        var client = new clientLib.CometD();
+        client.configure({
+            url: _uri
+        });
+
+        var count = 2;
+        function signal() {
+            if (--count === 0) {
+                done();
+            }
+        }
+
+        client.handshake(function(hs) {
+            if (hs.successful) {
+                client.addListener('/meta/disconnect', function() {
+                    signal();
+                });
+
+                var session = _cometd.getServerSession(client.getClientId());
+                session.addListener('suspended', function() {
+                    client.addListener('/meta/connect', function() {
+                        signal();
+                    });
+
+                    setTimeout(function() {
+                        session.disconnect();
+                    }, 0);
+                });
+            }
+        });
+    });
 });
