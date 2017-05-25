@@ -320,7 +320,7 @@ module.exports = function() {
                                     },
                                     _flush: function() {
                                         _removeBrowserMetaConnect(session);
-                                        callback(null, true);
+                                        callback(null);
                                     }
                                 };
                                 scheduler._timeout = setTimeout(function() {
@@ -331,7 +331,7 @@ module.exports = function() {
                                 _notifyEvent(session.listeners('suspended'), [session, message, timeout]);
                             } else {
                                 _removeBrowserMetaConnect(session);
-                                callback(null, true);
+                                callback(null);
                             }
                         } else {
                             var advice = reply.advice;
@@ -348,10 +348,10 @@ module.exports = function() {
                                 reply.successful = false;
                                 advice.reconnect = 'none';
                             }
-                            callback(null, true);
+                            callback(null);
                         }
                     } else {
-                        callback(null, true);
+                        callback(null);
                     }
                 }
             });
@@ -412,12 +412,12 @@ module.exports = function() {
                     }
                     case '/meta/connect': {
                         var canSuspend = messages.length === 1;
-                        _processMetaConnect(session, message, canSuspend, function(failure, result) {
+                        _processMetaConnect(session, message, canSuspend, function(failure) {
                             if (failure) {
                                 c(failure);
                             } else {
                                 cometd._log(_prefix, 'reply', message.reply);
-                                local.sendQueue = !canSuspend || result;
+                                local.sendQueue = true;
                                 local.sendReplies = local.sendQueue;
                                 local.scheduleExpiration = true;
                                 c();
