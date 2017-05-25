@@ -265,7 +265,7 @@ module.exports = function() {
             });
         }
 
-        function _processMetaConnect(session, message, canSuspend, finish, callback) {
+        function _processMetaConnect(session, message, canSuspend, callback) {
             if (session) {
                 var scheduler = session._scheduler;
                 if (scheduler) {
@@ -305,10 +305,8 @@ module.exports = function() {
                                             this._timeout = null;
                                             session._scheduler = null;
                                             _removeBrowserMetaConnect(session);
-                                            var response = context.response;
-                                            response.statusCode = 408;
-                                            response.end();
-                                            finish();
+                                            context.response.statusCode = 408;
+                                            callback(new Error('duplicate heartbeat'));
                                         }
                                     },
                                     _expired: function() {
@@ -322,11 +320,7 @@ module.exports = function() {
                                     },
                                     _flush: function() {
                                         _removeBrowserMetaConnect(session);
-                                        _respond(context.response, {
-                                            sendQueue: true,
-                                            sendReplies: true,
-                                            scheduleExpiration: true
-                                        }, session, [message], finish);
+                                        callback(null, true);
                                     }
                                 };
                                 scheduler._timeout = setTimeout(function() {
@@ -335,7 +329,6 @@ module.exports = function() {
                                 session._scheduler = scheduler;
                                 cometd._log(_prefix, 'suspended', message);
                                 _notifyEvent(session.listeners('suspended'), [session, message, timeout]);
-                                callback(null, false);
                             } else {
                                 _removeBrowserMetaConnect(session);
                                 callback(null, true);
@@ -364,13 +357,13 @@ module.exports = function() {
             });
         }
 
-        function _processMessages(request, response, messages, finish) {
+        function _processMessages(request, response, messages, callback) {
             cometd._log(_prefix, 'processing', messages.length, 'messages');
 
             if (messages.length === 0) {
                 response.statusCode = 400;
                 response.end();
-                finish();
+                callback();
                 return;
             }
 
@@ -419,7 +412,7 @@ module.exports = function() {
                     }
                     case '/meta/connect': {
                         var canSuspend = messages.length === 1;
-                        _processMetaConnect(session, message, canSuspend, finish, function(failure, result) {
+                        _processMetaConnect(session, message, canSuspend, function(failure, result) {
                             if (failure) {
                                 c(failure);
                             } else {
@@ -449,11 +442,13 @@ module.exports = function() {
             }, function(failure) {
                 if (failure) {
                     cometd._log(_prefix, 'message processing failed', failure);
-                    response.statusCode = 500;
+                    if (response.statusCode < 400) {
+                        response.statusCode = 500;
+                    }
                     response.end();
-                    finish(failure);
+                    callback(failure);
                 } else {
-                    _respond(response, local, session, messages, finish);
+                    _respond(response, local, session, messages, callback);
                 }
                 if (batch) {
                     session._endBatch();
