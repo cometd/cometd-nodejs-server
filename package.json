@@ -1,8 +1,12 @@
 {
   "name": "cometd-nodejs-server",
-  "version": "1.0.0-BETA3",
+  "version": "1.0.0",
   "description": "CometD server for NodeJS",
-  "keywords": ["node", "nodejs", "cometd"],
+  "keywords": [
+    "node",
+    "nodejs",
+    "cometd"
+  ],
   "homepage": "https://cometd.org",
   "bugs": {
     "url": "https://github.com/cometd/cometd-nodejs-server/issues"
@@ -17,8 +21,8 @@
     "test": "mocha"
   },
   "devDependencies": {
-    "mocha": "*",
-    "cometd-nodejs-client": "*",
-    "cometd": "*"
+    "cometd": "~3.1.2",
+    "cometd-nodejs-client": "~1.0.0",
+    "mocha": "*"
   }
 }
