@@ -1,6 +1,6 @@
 ## The CometD Project
 
-### CometD server for NodeJS
+### CometD NodeJS Server
 
 Server side APIs and implementation of the Bayeux Protocol for the NodeJS environment.
 
