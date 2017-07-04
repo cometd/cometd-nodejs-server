@@ -10,7 +10,7 @@ Server side APIs and implementation of the Bayeux Protocol for the NodeJS enviro
 npm install cometd-nodejs-server
 ```
 
-### Usage
+### Minimal Setup
 
 ```javascript
 var http = require('http');
@@ -20,10 +20,60 @@ var cometdServer = cometd.createCometDServer();
 
 var httpServer = http.createServer(cometdServer.handle);
 httpServer.listen(0, 'localhost', function() {
-    // Receives messages on the /service/chat channel.
-    cometdServer.createServerChannel('/service/chat').addListener('message', function(session, channel, message, callback) {
-        // Broadcast the message data to subscribers of the /chat channel.
-        cometdServer.createServerChannel('/chat').publish(session, message.data, callback);
-    });
+    // Your application code here.
+});
+```
+
+### Creating Channels and Receiving Messages
+
+```javascript
+var channel = cometdServer.createServerChannel('/service/chat');
+channel.addListener('message', function(session, channel, message, callback) {
+    // Your message handling here.
+
+    // Invoke the callback to signal that handling is complete.
+    callback();
+});
+```
+
+### Publishing Messages on a Channel
+
+```javascript
+var channel = cometdServer.createServerChannel('/chat');
+channel.publish(session, message.data);
+```
+
+### Installing a Security Policy
+
+```javascript
+cometdServer.policy = {
+    canHandshake: function(session, message, callback) {
+        // Your handshake policy here.
+        var allowed = ...;
+        
+        // Invoke the callback to signal the policy result. 
+        callback(null, allowed);
+    }
+};
+```
+
+### Sending a Direct Message to a Session
+
+```javascript
+var session = cometdServer.getServerSession(sessionId);
+session.deliver(null, '/service/chat', {
+    text: 'lorem ipsum'
+});
+```
+
+### Reacting to Session Timeout/Disconnection
+
+```javascript 
+session.addListener('removed', function(session, timeout) {
+    if (timeout) {
+        // Session was expired by the server.
+    } else {
+        // Session was explicitly disconnected.
+    }
 });
 ```
