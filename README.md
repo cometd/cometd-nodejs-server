@@ -3,6 +3,7 @@
 ### CometD NodeJS Server
 
 Server side APIs and implementation of the Bayeux Protocol for the NodeJS environment.
+WebSocket not (yet) supported.
 
 ### NPM Installation
 
