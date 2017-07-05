@@ -1,6 +1,6 @@
 {
   "name": "cometd-nodejs-server",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CometD server for NodeJS",
   "keywords": [
     "node",
@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "cometd": "~3.1.2",
-    "cometd-nodejs-client": "~1.0.0",
+    "cometd-nodejs-client": "~1.0.1",
     "mocha": "*"
   }
 }
