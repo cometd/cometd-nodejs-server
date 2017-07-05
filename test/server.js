@@ -488,4 +488,31 @@ describe('server', function() {
             '"supportedConnectionTypes": ["long-polling"]' +
             '}]');
     });
+
+    it('handles body already read', function(done) {
+        // Replace the handler.
+        _server.removeListener('request', _cometd.handle);
+        _server.addListener('request', function(request, response) {
+            var content = '';
+            request.addListener('data', function(chunk) {
+                content += chunk;
+            });
+            request.addListener('end', function() {
+                request.body = JSON.parse(content);
+                _cometd.handle(request, response);
+            });
+        });
+
+        http.request(newRequest(), function(r) {
+            receiveResponse(r, function(replies) {
+                var reply = replies[0];
+                assert.strictEqual(reply.successful, true);
+                done();
+            });
+        }).end('[{' +
+            '"channel": "/meta/handshake",' +
+            '"version": "1.0",' +
+            '"supportedConnectionTypes": ["long-polling"]' +
+            '}]');
+    });
 });

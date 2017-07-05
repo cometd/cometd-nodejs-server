@@ -456,30 +456,37 @@ module.exports = function() {
             });
         }
 
+        function _process(request, response, messages) {
+            cometd._setContext({
+                request: request,
+                response: response
+            });
+            _processMessages(request, response, messages, function() {
+                cometd._setContext(null);
+            });
+        }
+
         return _self = {
             handle: function(request, response) {
                 if (request.method === 'POST') {
-                    var content = '';
-                    // TODO: limit message size.
-                    request.addListener('data', function(chunk) {
-                        content += chunk;
-                    });
-                    request.addListener('end', function() {
-                        try {
-                            var messages = JSON.parse(content);
-                            cometd._setContext({
-                                request: request,
-                                response: response
-                            });
-                            _processMessages(request, response, messages, function() {
-                                cometd._setContext(null);
-                            });
-                        } catch (failure) {
-                            cometd._log(_prefix, failure.stack);
-                            response.statusCode = 400;
-                            response.end();
-                        }
-                    });
+                    if (request.body) {
+                        _process(request, response, request.body);
+                    } else {
+                        var content = '';
+                        // TODO: limit message size.
+                        request.addListener('data', function(chunk) {
+                            content += chunk;
+                        });
+                        request.addListener('end', function() {
+                            try {
+                                _process(request, response, JSON.parse(content));
+                            } catch (failure) {
+                                cometd._log(_prefix, failure.stack);
+                                response.statusCode = 400;
+                                response.end();
+                            }
+                        });
+                    }
                 } else {
                     response.statusCode = 400;
                     response.end();
