@@ -25,6 +25,19 @@ httpServer.listen(0, 'localhost', function() {
 });
 ```
 
+### Customizing CometD Configuration
+
+```javascript
+var cometd = require('cometd-nodejs-server');
+var cometdServer = cometd.createCometDServer({
+    logLevel: 'debug', // Emits logging on the console
+    timeout: 10000, // Heartbeat timeout in milliseconds
+    maxInterval: 15000, // Server-side session expiration in milliseconds
+    ...
+});
+
+```
+
 ### Creating Channels and Receiving Messages
 
 ```javascript
