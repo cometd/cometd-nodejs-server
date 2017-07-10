@@ -1,5 +1,6 @@
 var http = require('http');
 var assert = require('assert');
+var Latch  = require('./latch.js');
 var cometd = require('..');
 require('cometd-nodejs-client').adapt();
 var clientLib = require('cometd');
@@ -101,23 +102,17 @@ describe('integration', function() {
             url: _uri
         });
 
-        var count = 2;
-        function signal() {
-            if (--count === 0) {
-                done();
-            }
-        }
-
+        var latch = new Latch(2, done);
         client.handshake(function(hs) {
             if (hs.successful) {
                 client.addListener('/meta/disconnect', function() {
-                    signal();
+                    latch.signal();
                 });
 
                 var session = _cometd.getServerSession(client.getClientId());
                 session.addListener('suspended', function() {
                     client.addListener('/meta/connect', function() {
-                        signal();
+                        latch.signal();
                     });
 
                     setTimeout(function() {
