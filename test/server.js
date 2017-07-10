@@ -1,6 +1,7 @@
 var url = require('url');
 var http = require('http');
 var assert = require('assert');
+var Latch = require('./latch');
 var cometd = require('..');
 
 describe('server', function() {
@@ -508,6 +509,70 @@ describe('server', function() {
                 var reply = replies[0];
                 assert.strictEqual(reply.successful, true);
                 done();
+            });
+        }).end('[{' +
+            '"channel": "/meta/handshake",' +
+            '"version": "1.0",' +
+            '"supportedConnectionTypes": ["long-polling"]' +
+            '}]');
+    });
+
+    it('handles client close on held /meta/connect', function(done) {
+        _cometd.options.timeout = 1000;
+        _cometd.options.sweepPeriod = 500;
+        var maxInterval = 1000;
+        _cometd.options.maxInterval = maxInterval;
+        this.timeout(3 * maxInterval);
+
+        var latch = new Latch(2, done);
+        http.request(newRequest(), function(r1) {
+            receiveResponse(r1, function(replies1) {
+                var reply1 = replies1[0];
+                assert.strictEqual(reply1.successful, true);
+                var sessionId = reply1.clientId;
+
+                var session = _cometd.getServerSession(sessionId);
+                session.addListener('removed', function(s, timeout) {
+                    assert.strictEqual(s, session);
+                    assert.strictEqual(timeout, true);
+                    latch.signal();
+                });
+
+                var cookie = extractBrowserCookie(r1);
+                var connect1 = newRequest();
+                connect1.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                http.request(connect1, function(r2) {
+                    receiveResponse(r2, function(replies2) {
+                        var reply2 = replies2[0];
+                        assert.strictEqual(reply2.successful, true);
+
+                        // Send the /meta/connect that will be held, then abort it.
+                        var connect2 = newRequest();
+                        connect2.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                        var request = http.request(connect2);
+
+                        // The request errors because it did not receive the response.
+                        request.on('error', function() {
+                            latch.signal();
+                        });
+
+                        request.end('[{' +
+                            '"channel": "/meta/connect",' +
+                            '"clientId": "' + sessionId + '",' +
+                            '"connectionType": "long-polling"' +
+                            '}]', 'UTF-8', function() {
+                            // Force the close of the connection after sending the request.
+                            request.connection.destroy();
+                        });
+                    });
+                }).end('[{' +
+                    '"channel": "/meta/connect",' +
+                    '"clientId": "' + sessionId + '",' +
+                    '"connectionType": "long-polling",' +
+                    '"advice": {' +
+                    '  "timeout": 0' +
+                    '}' +
+                    '}]');
             });
         }).end('[{' +
             '"channel": "/meta/handshake",' +

@@ -178,12 +178,26 @@ module.exports = function() {
                 }
                 content += ']';
 
-                response.end(content, 'utf8', function(failure) {
+                var finish = function(failure) {
+                    cometd._log(_prefix, 'response finish for session', session ? session.id : 'null');
                     if (session && local.scheduleExpiration) {
                         session._scheduleExpiration(_self.option('interval'));
                     }
                     callback(failure);
+                };
+
+                response.addListener('finish', function() {
+                    finish();
                 });
+                response.addListener('error', function(e) {
+                    finish(e ? e : new Error('response error'));
+                });
+                var requestError = response._cometd_request_error;
+                if (requestError) {
+                    finish(requestError);
+                } else {
+                    response.end(content, 'utf8');
+                }
             }
         }
 
@@ -485,6 +499,13 @@ module.exports = function() {
                                 response.statusCode = 400;
                                 response.end();
                             }
+                        });
+                        ['aborted', 'error'].forEach(function(event) {
+                            request.addListener(event, function(e) {
+                                cometd._log(_prefix, 'request', event);
+                                response._cometd_request_error = e ? e : new Error('request error');
+                            });
+
                         });
                     }
                 } else {
