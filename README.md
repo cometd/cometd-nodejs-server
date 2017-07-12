@@ -38,6 +38,19 @@ var cometdServer = cometd.createCometDServer({
 
 ```
 
+### Server timeout and CometD timeout
+
+CometD clients send periodic heartbeat messages on the `/meta/connect` channel.
+The CometD server holds these heartbeat messages for at most the `timeout` value
+(see above), by default 30 seconds.
+
+The NodeJS server also has a `timeout` property that controls the maximum time
+to handle a request/response cycle, by default 120 seconds.
+
+You want to be sure that NodeJS' `Server.timeout` is greater than CometD's
+`CometDServer.options.timeout`, especially if you plan to increase the CometD
+timeout.
+
 ### Creating Channels and Receiving Messages
 
 ```javascript
