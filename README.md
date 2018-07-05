@@ -11,7 +11,16 @@ WebSocket not (yet) supported.
 npm install cometd-nodejs-server
 ```
 
-### Minimal Setup
+### Running the tests
+
+```
+npm install mocha
+npm install cometd
+npm install cometd-nodejs-client
+npm test
+```
+
+### Minimal Application
 
 ```javascript
 var http = require('http');
