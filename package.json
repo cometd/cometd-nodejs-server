@@ -18,11 +18,11 @@
     "url": "https://github.com/cometd/cometd-nodejs-server.git"
   },
   "scripts": {
-    "test": "mocha"
+    "test": "mocha --exit"
   },
   "devDependencies": {
-    "cometd": "~3.1.2",
-    "cometd-nodejs-client": "~1.0.1",
-    "mocha": "*"
+    "cometd": "^3.1.4",
+    "cometd-nodejs-client": "^1.0.2",
+    "mocha": "^5.2.0"
   }
 }
