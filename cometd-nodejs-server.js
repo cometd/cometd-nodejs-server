@@ -1,4 +1,3 @@
-var http = require('http');
 var crypto = require('crypto');
 
 module.exports = function() {
@@ -18,6 +17,35 @@ module.exports = function() {
         return result;
     }
 
+    /**
+     * Folds (from the left) asynchronously over the given array,
+     * invoking the folding function "fn" to process each element
+     * of the array.
+     *
+     * The folding function must have the following signature:
+     *   function(result, element, loop)
+     * where:
+     * - "result" is the accumulated result of element processing
+     * (starting from the parameter "zero")
+     * - "element" is the n-th element of the array
+     * - "loop" is a function(failure, result) that controls the
+     *   iteration: when succeeded it produces the accumulated result
+     *   (passed to the next invocation of the folding function)
+     *   and iterates to the next element, when failed it produces
+     *   the failure, stops the iteration and fails "callback"
+     *
+     * The async feature comes from the fact that the iteration
+     * is controlled by invoking the "loop" function, rather than
+     * being implicit after the element processing function returns;
+     * if the "loop" function is not invoked, the iteration pauses
+     * until the "loop" function is invoked.
+     *
+     * @param array the array of elements to iterate over
+     * @param zero the initial result, used also when the array is empty
+     * @param fn the folding function that performs element processing and loop control
+     * @param callback the function to invoke when the iteration is complete
+     * @private
+     */
     function _asyncFoldLeft(array, zero, fn, callback) {
         var result = zero;
 
@@ -281,7 +309,7 @@ module.exports = function() {
             });
         }
 
-        function _processMetaConnect(session, message, canSuspend, callback) {
+        function _processMetaConnect(context, session, message, canSuspend, callback) {
             if (session) {
                 var scheduler = session._scheduler;
                 if (scheduler) {
@@ -303,7 +331,6 @@ module.exports = function() {
                             }
                             var timeout = session._calculateTimeout(_self.option('timeout'));
                             if (timeout > 0) {
-                                var context = _mixin({}, cometd.context);
                                 var scheduler = {
                                     resume: function() {
                                         if (this._timeout) {
@@ -393,6 +420,8 @@ module.exports = function() {
                 session._startBatch();
             }
 
+            // An internal context used by the implementation to avoid
+            // modifying/altering that given to applications via cometd.context.
             var context = {
                 request: request,
                 response: response,
@@ -428,7 +457,7 @@ module.exports = function() {
                     }
                     case '/meta/connect': {
                         var canSuspend = messages.length === 1;
-                        _processMetaConnect(session, message, canSuspend, function(failure) {
+                        _processMetaConnect(context, session, message, canSuspend, function(failure) {
                             if (failure) {
                                 c(failure);
                             } else {
@@ -473,6 +502,8 @@ module.exports = function() {
         }
 
         function _process(request, response, messages) {
+            // Sets the context used by applications, so that
+            // they can access Node's request and response.
             cometd._setContext({
                 request: request,
                 response: response
