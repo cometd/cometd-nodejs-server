@@ -113,3 +113,36 @@ session.addListener('removed', function(session, timeout) {
     }
 });
 ```
+
+### Accessing Contextual Information
+
+In certain cases it is necessary to access contextual information 
+such as the HTTP request that carries incoming CometD messages, or
+the HTTP response that carries outgoing CometD messages.
+
+```javascript
+var channel = cometdServer.createServerChannel('/chat');
+channel.addListener('message', function(session, channel, message, callback) {
+    // Access contextual information.
+    var request = cometdServer.context.request;
+    if (request) {
+        // You can read headers from the NodeJS HTTP request.
+        var myHeader = request.headers['X-My-Header'];
+        ...
+    }
+
+    var response = cometdServer.context.response;
+    if (response) {
+        // You can add headers to the NodeJS HTTP response.
+        response.setHeader('X-My-Header', 'foo_bar');
+        ...
+    }
+
+    // Invoke the callback to signal that handling is complete.
+    callback();
+});
+```
+
+> NOTE: always check if the `request` and `response` objects are defined;
+they may not be defined if the transport used is not HTTP but, for example,
+WebSocket.
