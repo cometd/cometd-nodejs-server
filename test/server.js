@@ -35,15 +35,23 @@ describe('server', function() {
         return request;
     }
 
-    function receiveResponse(response, callback) {
-        assert.strictEqual(response.statusCode, 200);
+    function receiveResponseWithStatus(response, status, callback) {
+        assert.strictEqual(response.statusCode, status);
         var json = '';
         response.on('data', function(chunk) {
             json += chunk;
         });
         response.on('end', function() {
-            callback(JSON.parse(json));
+            if (json) {
+                callback(JSON.parse(json));
+            } else {
+                callback();
+            }
         });
+    }
+
+    function receiveResponse(response, callback) {
+        receiveResponseWithStatus(response, 200, callback);
     }
 
     function extractBrowserCookie(response) {
@@ -419,7 +427,6 @@ describe('server', function() {
         var timeout = 2000;
         _cometd.options.timeout = timeout;
         this.timeout(2 * timeout);
-
         // _cometd.options.logLevel = 'debug';
 
         http.request(newRequest(), function(r1) {
@@ -566,6 +573,79 @@ describe('server', function() {
                         });
                     });
                 }).end('[{' +
+                    '"channel": "/meta/connect",' +
+                    '"clientId": "' + sessionId + '",' +
+                    '"connectionType": "long-polling",' +
+                    '"advice": {' +
+                    '  "timeout": 0' +
+                    '}' +
+                    '}]');
+            });
+        }).end('[{' +
+            '"channel": "/meta/handshake",' +
+            '"version": "1.0",' +
+            '"supportedConnectionTypes": ["long-polling"]' +
+            '}]');
+    });
+
+    it('responds 408 to held /meta/connect when a new /meta/connect arrives', function(done) {
+        var timeout = 2000;
+        _cometd.options.timeout = timeout;
+        this.timeout(2 * timeout);
+        // _cometd.options.logLevel = 'debug';
+
+        http.request(newRequest(), function(r0) {
+            receiveResponse(r0, function(replies0) {
+                var hsReply = replies0[0];
+                assert.strictEqual(hsReply.successful, true);
+                var sessionId = hsReply.clientId;
+                var cookie = extractBrowserCookie(r0);
+                var connect1 = newRequest();
+                connect1.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                http.request(connect1, function(r1) {
+                    receiveResponse(r1, function(replies1) {
+                        var cnReply1 = replies1[0];
+                        assert.strictEqual(cnReply1.successful, true);
+                        var latch = new Latch(2, done);
+                        // When the first /meta/connect is suspended, send another /meta/connect.
+                        var suspended = 0;
+                        _cometd.getServerSession(sessionId).addListener('suspended', function() {
+                            if (++suspended === 1) {
+                                var connect3 = newRequest();
+                                connect3.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                                var start = Date.now();
+                                http.request(connect3, function(r3) {
+                                    receiveResponse(r3, function(replies3) {
+                                        var cnReply3 = replies3[0];
+                                        assert.strictEqual(cnReply3.successful, true);
+                                        var elapsed = Date.now() - start;
+                                        assert(elapsed > timeout / 2);
+                                        latch.signal();
+                                    });
+                                }).end('[{' +
+                                    '"id": "3",' +
+                                    '"channel": "/meta/connect",' +
+                                    '"clientId": "' + sessionId + '",' +
+                                    '"connectionType": "long-polling"' +
+                                    '}]');
+                            }
+                        });
+                        // Send the /meta/connect that will be held.
+                        var connect2 = newRequest();
+                        connect2.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                        http.request(connect2, function(r2) {
+                            receiveResponseWithStatus(r2, 408, function() {
+                                latch.signal();
+                            });
+                        }).end('[{' +
+                            '"id": "2",' +
+                            '"channel": "/meta/connect",' +
+                            '"clientId": "' + sessionId + '",' +
+                            '"connectionType": "long-polling"' +
+                            '}]');
+                    });
+                }).end('[{' +
+                    '"id": "1",' +
                     '"channel": "/meta/connect",' +
                     '"clientId": "' + sessionId + '",' +
                     '"connectionType": "long-polling",' +

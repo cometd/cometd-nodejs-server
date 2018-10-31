@@ -486,10 +486,10 @@ module.exports = function() {
                 }
             }, function(failure) {
                 if (failure) {
-                    cometd._log(_prefix, 'message processing failed', failure);
                     if (response.statusCode < 400) {
                         response.statusCode = 500;
                     }
+                    cometd._log(_prefix, 'response failure', response.statusCode, 'for session', session ? session.id : 'null', failure);
                     response.end();
                     callback(failure);
                 } else {
