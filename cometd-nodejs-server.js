@@ -104,13 +104,8 @@ module.exports = function() {
         });
     }
 
-    function JSONTransport(cometd) {
-        var _self;
-        var _prefix = 'long-polling.json';
-        var _sessions = {};
-        var _browserMetaConnects = {};
-
-        function _option(options, prefix, name, dftValue) {
+    function ServerTransport(cometd) {
+        this._option = function(options, prefix, name, dftValue) {
             var result = options[name];
             var segments = prefix.split('.');
             var pfx = null;
@@ -127,7 +122,39 @@ module.exports = function() {
                 result = dftValue;
             }
             return result;
+        };
+
+        this.option = function(name) {
+            var dftValue = undefined;
+            switch (name) {
+                case 'interval':
+                    dftValue = 0;
+                    break;
+                case 'maxInterval':
+                    dftValue = 10000;
+                    break;
+                case 'timeout':
+                    dftValue = 30000;
+                    break;
+            }
+            return this._option(cometd.options, '', name, dftValue);
+        };
+
+        return this;
+    }
+    ServerTransport.extends = function(parentObject) {
+        function F() {
         }
+        F.prototype = parentObject;
+        return new F();
+    };
+
+    function HTTPTransport(cometd) {
+        var _super = new ServerTransport(cometd);
+        var _self = ServerTransport.extends(_super);
+        var _prefix = 'long-polling.json';
+        var _sessions = {};
+        var _browserMetaConnects = {};
 
         function _parseCookies(text) {
             var cookies = {};
@@ -209,7 +236,7 @@ module.exports = function() {
                 var finish = function(failure) {
                     cometd._log(_prefix, 'response finish for session', session ? session.id : 'null');
                     if (session && local.scheduleExpiration) {
-                        session._scheduleExpiration(_self.option('interval'));
+                        session._scheduleExpiration(_self.option('interval'), _self.option('maxInterval'));
                     }
                     callback(failure);
                 };
@@ -513,64 +540,63 @@ module.exports = function() {
             });
         }
 
-        return _self = {
-            handle: function(request, response) {
-                if (request.method === 'POST') {
-                    if (request.body) {
-                        _process(request, response, request.body);
-                    } else {
-                        var content = '';
-                        // TODO: limit message size.
-                        request.addListener('data', function(chunk) {
-                            content += chunk;
-                        });
-                        request.addListener('end', function() {
-                            try {
-                                _process(request, response, JSON.parse(content));
-                            } catch (failure) {
-                                cometd._log(_prefix, failure.stack);
-                                response.statusCode = 400;
-                                response.end();
-                            }
-                        });
-                        ['aborted', 'error'].forEach(function(event) {
-                            request.addListener(event, function(e) {
-                                cometd._log(_prefix, 'request', event);
-                                response._cometd_request_error = e ? e : new Error('request error');
-                            });
+        _self.name = function() {
+            return 'long-polling';
+        };
 
-                        });
-                    }
+        _self.handle = function(request, response) {
+            if (request.method === 'POST') {
+                if (request.body) {
+                    _process(request, response, request.body);
                 } else {
-                    response.statusCode = 400;
-                    response.end();
+                    var content = '';
+                    // TODO: limit message size.
+                    request.addListener('data', function(chunk) {
+                        content += chunk;
+                    });
+                    request.addListener('end', function() {
+                        try {
+                            _process(request, response, JSON.parse(content));
+                        } catch (failure) {
+                            cometd._log(_prefix, failure.stack);
+                            response.statusCode = 400;
+                            response.end();
+                        }
+                    });
+                    ['aborted', 'error'].forEach(function(event) {
+                        request.addListener(event, function(e) {
+                            cometd._log(_prefix, 'request', event);
+                            response._cometd_request_error = e ? e : new Error('request error');
+                        });
+                    });
                 }
-            },
-            option: function(name) {
-                var dftValue = undefined;
-                switch (name) {
-                    case 'browserCookieName':
-                        dftValue = 'BAYEUX_BROWSER';
-                        break;
-                    case 'interval':
-                        dftValue = 0;
-                        break;
-                    case 'maxInterval':
-                        dftValue = 10000;
-                        break;
-                    case 'timeout':
-                        dftValue = 30000;
-                        break;
-                    case 'maxSessionsPerBrowser':
-                        dftValue = 1;
-                        break;
-                    case 'multiSessionInterval':
-                        dftValue = 2000;
-                        break;
-                }
-                return _option(cometd.options, _prefix, name, dftValue);
+            } else {
+                response.statusCode = 400;
+                response.end();
             }
         };
+
+        _self.option = function(name) {
+            var result = _super.option(name);
+            if (result !== undefined) {
+                return result;
+            }
+            var dftValue = undefined;
+            switch (name) {
+                case 'browserCookieName':
+                    dftValue = 'BAYEUX_BROWSER';
+                    break;
+                case 'maxSessionsPerBrowser':
+                    dftValue = 1;
+                    break;
+                case 'multiSessionInterval':
+                    dftValue = 2000;
+                    break;
+            }
+            return this._option(cometd.options, _prefix, name, dftValue);
+        };
+
+        return _self;
     }
 
     /**
@@ -878,10 +904,10 @@ module.exports = function() {
             _handshake: function() {
                 _handshaken = true;
             },
-            _scheduleExpiration: function(dftInterval) {
+            _scheduleExpiration: function(dftInterval, dftMaxInterval) {
                 _scheduleTime = Date.now();
                 var interval = this._calculateInterval(dftInterval);
-                _expireTime = _scheduleTime + interval + cometd._transport.option('maxInterval');
+                _expireTime = _scheduleTime + interval + dftMaxInterval;
             },
             _cancelExpiration: function(metaConnect) {
                 if (metaConnect) {
@@ -988,7 +1014,7 @@ module.exports = function() {
             logLevel: 'info',
             sweepPeriod: 997
         }, options);
-        var _transport;
+        var _httpTransport;
         var _channels = {};
         var _sessions = {};
         var _listeners = {};
@@ -1328,6 +1354,7 @@ module.exports = function() {
                     _sessions[id]._sweep();
                 }
             }
+            // TODO: need to sweep transports too?
             _sweeper = setTimeout(_sweep, _self.options.sweepPeriod);
         }
 
@@ -1391,7 +1418,7 @@ module.exports = function() {
              * @param response the HTTP response
              */
             handle: function(request, response) {
-                _transport.handle(request, response);
+                _httpTransport.handle(request, response);
             },
             /**
              * @param name the channel name
@@ -1444,9 +1471,6 @@ module.exports = function() {
 
             // PRIVATE APIs.
 
-            get _transport() {
-                return _transport;
-            },
             _setContext: function(context) {
                 if (context) {
                     _mixin(_context, context);
@@ -1552,7 +1576,9 @@ module.exports = function() {
         _channels['/meta/subscribe'] = _self.createServerChannel('/meta/subscribe');
         _channels['/meta/unsubscribe'] = _self.createServerChannel('/meta/unsubscribe');
         _channels['/meta/disconnect'] = _self.createServerChannel('/meta/disconnect');
-        _transport = new JSONTransport(_self);
+
+        _httpTransport = new HTTPTransport(_self);
+
         _sweep();
 
         return _self;

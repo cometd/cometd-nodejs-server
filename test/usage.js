@@ -216,4 +216,77 @@ describe('usage', function() {
             }
         });
     });
+
+    it('inheritance', function(done) {
+        function Base() {
+            var _private = 1;
+
+            function _internal() {
+                return this.getConstant();
+            }
+
+            // "abstract" function.
+            // Can be overridden in "subclasses", and invoked
+            // from "superclass" via "this" (as long as subclasses
+            // pass the right "this" using call()).
+            this.getConstant = function() {
+                throw 'abstract';
+            };
+
+            this.getBaseValue = function() {
+                // return _private + this.getConstant();
+                return _private + _internal.call(this);
+            };
+
+            return this;
+        }
+
+        Base.extends = function(parentObject) {
+            // We need a fake function to
+            // access the "prototype" property.
+            function F() {
+            }
+
+            // Establish the inheritance chain.
+            F.prototype = parentObject;
+            var f = new F();
+            // f -- inherits from --> F.prototype -- inherits from --> Object.prototype.
+            // Now I can add functions to f.
+            return f;
+        };
+
+        function Derived() {
+            var _private = 5;
+            var _super = new Base();
+            var _self = Base.extends(_super);
+
+            // Overriding "abstract" function.
+            _self.getConstant = function() {
+                return 10;
+            };
+
+            // Overriding "concrete" function and calling super.
+            _self.getBaseValue = function() {
+                // Must use call() to pass "this" to super
+                // in case superclass calls "abstract" functions.
+                return _super.getBaseValue.call(this) + 2;
+            };
+
+            _self.getDerivedValue = function() {
+                return this.getBaseValue() + _private;
+            };
+
+            return _self;
+        }
+
+        var d = new Derived();
+
+        // 1 + 10 + 2
+        assert.strictEqual(d.getBaseValue(), 13);
+        // 13 + 5
+        assert.strictEqual(d.getDerivedValue(), 18);
+
+        done();
+    });
+
 });
