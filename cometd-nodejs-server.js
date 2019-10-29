@@ -375,7 +375,7 @@ module.exports = function() {
                                             this._timeout = null;
                                             session._scheduler = null;
                                             _removeBrowserMetaConnect(session);
-                                            context.response.statusCode = 408;
+                                            context.response.statusCode = 500;
                                             callback(new Error('duplicate heartbeat'));
                                         }
                                     },
