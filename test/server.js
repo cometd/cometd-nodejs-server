@@ -57,16 +57,18 @@ describe('server', function() {
     function extractBrowserCookie(response) {
         var headers = response.headers;
         for (var name in headers) {
-            if (/^set-cookie$/i.test(name)) {
-                var header = headers[name];
-                for (var i = 0; i < header.length; ++i) {
-                    var whole = header[i];
-                    var parts = whole.split(';');
-                    for (var j = 0; j < parts.length; ++j) {
-                        var nameValue = parts[j].split('=');
-                        if (nameValue.length === 2) {
-                            if (nameValue[0] === 'BAYEUX_BROWSER') {
-                                return nameValue[1];
+            if (headers.hasOwnProperty(name)) {
+                if (/^set-cookie$/i.test(name)) {
+                    var values = headers[name];
+                    for (var i = 0; i < values.length; ++i) {
+                        var header = values[i];
+                        var parts = header.split(';');
+                        for (var j = 0; j < parts.length; ++j) {
+                            var nameValue = parts[j].split('=');
+                            if (nameValue.length === 2) {
+                                if (nameValue[0] === 'BAYEUX_BROWSER') {
+                                    return nameValue[1];
+                                }
                             }
                         }
                     }
@@ -653,6 +655,36 @@ describe('server', function() {
                     '  "timeout": 0' +
                     '}' +
                     '}]');
+            });
+        }).end('[{' +
+            '"channel": "/meta/handshake",' +
+            '"version": "1.0",' +
+            '"supportedConnectionTypes": ["long-polling"]' +
+            '}]');
+    });
+
+    it('supports SameSite cookie attribute', function(done) {
+        _cometd.options.browserCookieSameSite = 'Strict';
+
+        http.request(newRequest(), function(r) {
+            receiveResponse(r, function(replies) {
+                var reply = replies[0];
+                assert.strictEqual(reply.successful, true);
+                var headers = r.headers;
+                for (var name in headers) {
+                    if (headers.hasOwnProperty(name)) {
+                        if (/^set-cookie$/i.test(name)) {
+                            var values = headers[name];
+                            for (var i = 0; i < values.length; ++i) {
+                                if (values[i].indexOf('SameSite=Strict') >= 0) {
+                                    done();
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
+                done(new Error('missing SameSite cookie attribute'));
             });
         }).end('[{' +
             '"channel": "/meta/handshake",' +

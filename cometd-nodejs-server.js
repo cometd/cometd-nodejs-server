@@ -298,6 +298,21 @@ module.exports = function() {
             advice.interval = _self.option('interval');
         }
 
+        function _generateCookie(cookieName, cookieValue) {
+            var result = cookieName + '=' + cookieValue;
+            if (_self.option('browserCookieHttpOnly') === true) {
+                result += '; HttpOnly';
+            }
+            if (_self.option('browserCookieSecure') === true) {
+                result += '; Secure';
+            }
+            var sameSite = _self.option('browserCookieSameSite');
+            if (sameSite) {
+                result += '; SameSite=' + sameSite;
+            }
+            return result;
+        }
+
         function _processMetaHandshake(context, session, message, callback) {
             cometd._process(session, message, function(failure, result) {
                 if (failure) {
@@ -309,7 +324,7 @@ module.exports = function() {
                         var browserId = context.cookies[cookieName];
                         if (!browserId) {
                             browserId = crypto.randomBytes(20).toString('hex');
-                            context.response.setHeader('Set-Cookie', cookieName + '=' + browserId + '; HttpOnly');
+                            context.response.setHeader('Set-Cookie', _generateCookie(cookieName, browserId));
                         }
                         var list = _sessions[browserId];
                         if (!list) {
@@ -585,6 +600,9 @@ module.exports = function() {
             switch (name) {
                 case 'browserCookieName':
                     dftValue = 'BAYEUX_BROWSER';
+                    break;
+                case 'browserCookieHttpOnly':
+                    dftValue = true;
                     break;
                 case 'maxSessionsPerBrowser':
                     dftValue = 1;

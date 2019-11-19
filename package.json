@@ -1,6 +1,6 @@
 {
   "name": "cometd-nodejs-server",
-  "version": "1.0.4",
+  "version": "1.0.5-BETA",
   "description": "CometD server for NodeJS",
   "keywords": [
     "node",
