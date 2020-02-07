@@ -104,6 +104,17 @@ module.exports = function() {
         });
     }
 
+    function _serialize(message) {
+        if (message._json) {
+            return message;
+        } else {
+            // Non enumerable property '_json' caches the JSON representation.
+            return Object.defineProperty(message, '_json', {
+                value: JSON.stringify(message)
+            });
+        }
+    }
+
     function ServerTransport(cometd) {
         this._option = function(options, prefix, name, dftValue) {
             var result = options[name];
@@ -142,9 +153,11 @@ module.exports = function() {
 
         return this;
     }
+
     ServerTransport.extends = function(parentObject) {
         function F() {
         }
+
         F.prototype = parentObject;
         return new F();
     };
@@ -693,8 +706,8 @@ module.exports = function() {
              */
             publish: function(sender, data, callback) {
                 callback = callback || function() {
-                        return undefined;
-                    };
+                    return undefined;
+                };
                 cometd._publish(this, sender, {
                     channel: name,
                     data: data
@@ -907,7 +920,7 @@ module.exports = function() {
 
             _deliver: function(sender, message) {
                 // TODO: avoid delivering to self ?
-                _offer(message);
+                _offer(_serialize(message));
                 if (_batch === 0) {
                     this._flush();
                 }
@@ -1297,11 +1310,8 @@ module.exports = function() {
             });
             channels.push(channel);
 
-            // Non enumerable property '_json' cached to avoid
-            // generating the JSON string for each subscriber.
-            message = Object.defineProperty(message, '_json', {
-                value: JSON.stringify(message)
-            });
+            // Avoid generating the JSON string for each subscriber.
+            message = _serialize(message);
 
             channels.forEach(function(channel) {
                 var subscribers = channel.subscribers;
