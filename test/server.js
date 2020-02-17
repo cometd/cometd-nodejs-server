@@ -590,9 +590,11 @@ describe('server', function() {
             '}]');
     });
 
-    it('responds 500 to held /meta/connect when a new /meta/connect arrives', function(done) {
+    it('responds custom HTTP code to held /meta/connect when a new /meta/connect arrives', function(done) {
         var timeout = 2000;
         _cometd.options.timeout = timeout;
+        var httpCode = 400;
+        _cometd.options.duplicateMetaConnectHttpResponseCode = httpCode;
         this.timeout(2 * timeout);
         // _cometd.options.logLevel = 'debug';
 
@@ -636,7 +638,7 @@ describe('server', function() {
                         var connect2 = newRequest();
                         connect2.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
                         http.request(connect2, function(r2) {
-                            receiveResponseWithStatus(r2, 500, function() {
+                            receiveResponseWithStatus(r2, httpCode, function() {
                                 latch.signal();
                             });
                         }).end('[{' +

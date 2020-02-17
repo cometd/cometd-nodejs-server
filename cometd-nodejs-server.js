@@ -403,7 +403,7 @@ module.exports = function() {
                                             this._timeout = null;
                                             session._scheduler = null;
                                             _removeBrowserMetaConnect(session);
-                                            context.response.statusCode = 500;
+                                            context.response.statusCode = _self.option('duplicateMetaConnectHttpResponseCode');
                                             callback(new Error('duplicate heartbeat'));
                                         }
                                     },
@@ -622,6 +622,9 @@ module.exports = function() {
                     break;
                 case 'multiSessionInterval':
                     dftValue = 2000;
+                    break;
+                case 'duplicateMetaConnectHttpResponseCode':
+                    dftValue = 500;
                     break;
             }
             return this._option(cometd.options, _prefix, name, dftValue);
