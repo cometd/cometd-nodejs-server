@@ -263,7 +263,7 @@ module.exports = function() {
                 var requestError = response._cometd_request_error;
                 if (requestError) {
                     finish(requestError);
-                } else if (response.socket.destroyed) {
+                } else if (!response.socket || response.socket.destroyed) {
                     finish(new Error('connection destroyed'));
                 } else {
                     response.end(content, 'utf8');
