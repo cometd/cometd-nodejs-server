@@ -9,7 +9,7 @@ module.exports = function() {
                 continue;
             }
             for (var propName in object) {
-                if (object.hasOwnProperty(propName)) {
+                if (Object.prototype.hasOwnProperty.call(object, propName)) {
                     result[propName] = object[propName];
                 }
             }
@@ -185,7 +185,7 @@ module.exports = function() {
 
         function _findSessions(cookies) {
             for (var cookie in cookies) {
-                if (cookies.hasOwnProperty(cookie)) {
+                if (Object.prototype.hasOwnProperty.call(cookies, cookie)) {
                     if (cookie === _self.option('browserCookieName')) {
                         var browserId = cookies[cookie];
                         return _sessions[browserId] || null;
@@ -1507,7 +1507,7 @@ module.exports = function() {
                     _mixin(_context, context);
                 } else {
                     for (var k in _context) {
-                        if (_context.hasOwnProperty(k)) {
+                        if (Object.prototype.hasOwnProperty.call(_context, k)) {
                             delete _context[k];
                         }
                     }
