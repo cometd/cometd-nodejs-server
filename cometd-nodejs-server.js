@@ -211,63 +211,62 @@ module.exports = function() {
             return null;
         }
 
-        function _respond(response, local, session, messages, callback) {
-            if (local.sendQueue || local.sendReplies) {
-                response.statusCode = 200;
-                response.setHeader('Content-Type', 'application/json');
+        function _respond(response, local, session, callback) {
+            response.statusCode = 200;
+            response.setHeader('Content-Type', 'application/json');
 
-                var content = '[';
-                var queue = [];
-                if (session && local.sendQueue) {
-                    queue = session._drainQueue();
-                    cometd._log(_prefix, 'sending', queue.length, 'queued messages for', session.id);
-                    queue.forEach(function(m, i) {
-                        if (i > 0) {
-                            content += ',';
-                        }
-                        var json = m._json;
-                        if (!json) {
-                            json = JSON.stringify(m);
-                        }
-                        content += json;
-                    });
-                }
-                if (local.sendReplies) {
+            var content = '[';
+            // Serialize the queue.
+            var queue = [];
+            if (session && local.sendQueue) {
+                queue = session._drainQueue();
+                cometd._log(_prefix, 'sending', queue.length, 'queued messages for', session.id);
+                queue.forEach(function(m, i) {
+                    if (i > 0) {
+                        content += ',';
+                    }
+                    var json = m._json;
+                    if (!json) {
+                        json = JSON.stringify(m);
+                    }
+                    content += json;
+                });
+            }
+            // Serialize the replies.
+            cometd._log(_prefix, 'sending', local.replies.length, 'replies for session', session ? session.id : 'null');
+            local.replies.forEach(function(reply, i) {
+                if (i === 0) {
                     if (queue.length > 0) {
                         content += ',';
                     }
-                    cometd._log(_prefix, 'sending', messages.length, 'replies for session', session ? session.id : 'null');
-                    messages.forEach(function(m, i) {
-                        if (i > 0) {
-                            content += ',';
-                        }
-                        content += JSON.stringify(m.reply);
-                    });
+                } else if (i > 0) {
+                    content += ',';
                 }
-                content += ']';
+                content += JSON.stringify(reply);
+            });
+            content += ']';
 
-                var finish = function(failure) {
-                    cometd._log(_prefix, 'response finish for session', session ? session.id : 'null');
-                    if (session && local.scheduleExpiration) {
-                        session._scheduleExpiration(_self.option('interval'), _self.option('maxInterval'));
-                    }
-                    callback(failure);
-                };
-
-                response.addListener('finish', function() {
-                    finish();
-                });
-                response.addListener('error', function(e) {
-                    finish(e ? e : new Error('response error'));
-                });
-                var requestError = response._cometd_request_error;
-                if (requestError) {
-                    finish(requestError);
-                } else if (!response.socket || response.socket.destroyed) {
-                    finish(new Error('connection destroyed'));
-                } else {
-                    response.end(content, 'utf8');
+            var finish = function(failure) {
+                cometd._log(_prefix, 'response finish for session', session ? session.id : 'null');
+                if (session && local.scheduleExpiration) {
+                    session._scheduleExpiration(_self.option('interval'), _self.option('maxInterval'));
                 }
+                callback(failure);
+            };
+
+            response.addListener('finish', function() {
+                finish();
+            });
+            response.addListener('error', function(e) {
+                finish(e ? e : new Error('response error'));
+            });
+            var requestError = response._cometd_request_error;
+            if (requestError) {
+                finish(requestError);
+            } else if (!response.socket || response.socket.destroyed) {
+                finish(new Error('connection destroyed'));
+            } else {
+                response.end(content, 'utf8');
             }
         }
 
@@ -485,26 +484,34 @@ module.exports = function() {
 
             var local = {
                 sendQueue: false,
-                sendReplies: false,
+                replies: [],
                 scheduleExpiration: false
             };
 
-            _asyncFoldLeft(messages, undefined, function(y, message, c) {
+            _asyncFoldLeft(messages, undefined, function(y, message, loop) {
                 cometd._log(_prefix, 'processing', message);
                 switch (message.channel) {
                     case '/meta/handshake': {
                         _processMetaHandshake(context, session, message, function(failure) {
                             if (failure) {
-                                c(failure);
+                                loop(failure);
                             } else {
                                 if (messages.length > 1) {
-                                    c(new Error('protocol violation'));
+                                    loop(new Error('protocol violation'));
                                 } else {
-                                    cometd._log(_prefix, 'reply', message.reply);
-                                    local.sendQueue = false;
-                                    local.sendReplies = true;
-                                    local.scheduleExpiration = true;
-                                    c();
+                                    cometd._extendReply(session, message.reply, function(failure, reply) {
+                                        if (failure) {
+                                            loop(failure);
+                                        } else {
+                                            cometd._log(_prefix, 'reply, modified:', message.reply !== reply, '' + reply);
+                                            if (reply) {
+                                                local.replies.push(reply);
+                                            }
+                                            local.sendQueue = false;
+                                            local.scheduleExpiration = true;
+                                            loop();
+                                        }
+                                    });
                                 }
                             }
                         });
@@ -514,13 +521,21 @@ module.exports = function() {
                         var canSuspend = messages.length === 1;
                         _processMetaConnect(context, session, message, canSuspend, function(failure) {
                             if (failure) {
-                                c(failure);
+                                loop(failure);
                             } else {
-                                cometd._log(_prefix, 'reply', message.reply);
-                                local.sendQueue = true;
-                                local.sendReplies = local.sendQueue;
-                                local.scheduleExpiration = true;
-                                c();
+                                cometd._extendReply(session, message.reply, function(failure, reply) {
+                                    if (failure) {
+                                        loop(failure);
+                                    } else {
+                                        cometd._log(_prefix, 'reply, modified:', message.reply !== reply, '' + reply);
+                                        if (reply) {
+                                            local.replies.push(reply);
+                                        }
+                                        local.sendQueue = true;
+                                        local.scheduleExpiration = true;
+                                        loop();
+                                    }
+                                });
                             }
                         });
                         break;
@@ -528,13 +543,22 @@ module.exports = function() {
                     default: {
                         cometd._process(session, message, function(failure) {
                             if (failure) {
-                                c(failure);
+                                loop(failure);
                             } else {
-                                cometd._log(_prefix, 'reply', message.reply);
-                                local.sendQueue = true;
-                                local.sendReplies = true;
-                                // Leave scheduleExpiration unchanged.
-                                c();
+                                cometd._extendReply(session, message.reply, function(failure, reply) {
+                                    if (failure) {
+                                        loop(failure);
+                                    } else {
+                                        cometd._log(_prefix, 'reply, modified:', message.reply !== reply, '' + reply);
+                                        if (reply) {
+                                            local.replies.push(reply);
+                                        }
+                                        local.sendQueue = true;
+                                        // Leave scheduleExpiration unchanged.
+                                        loop();
+                                    }
+                                });
+
                             }
                         });
                     }
@@ -548,7 +572,7 @@ module.exports = function() {
                     response.end();
                     callback(failure);
                 } else {
-                    _respond(response, local, session, messages, callback);
+                    _respond(response, local, session, callback);
                 }
                 if (batch) {
                     session._endBatch();
@@ -714,7 +738,7 @@ module.exports = function() {
                 cometd._publish(this, sender, {
                     channel: name,
                     data: data
-                }, callback);
+                }, false, callback);
             },
             /**
              * @param event the event type
@@ -820,6 +844,7 @@ module.exports = function() {
      */
     function ServerSession(cometd, id) {
         var _handshaken = false;
+        var _extensions = [];
         var _listeners = {};
         var _subscriptions = [];
         var _queue = [];
@@ -828,6 +853,9 @@ module.exports = function() {
         var _batch = 0;
         var _scheduleTime = 0;
         var _expireTime = 0;
+
+        function _noop() {
+        }
 
         function _offer(message) {
             // TODO: queue maxed ?
@@ -841,6 +869,35 @@ module.exports = function() {
              */
             get id() {
                 return id;
+            },
+            /**
+             * Adds the given extension to the list of extensions.
+             * TODO: document extension method signature
+             *
+             * @param extension the extension to add
+             */
+            addExtension: function(extension) {
+                _extensions.push(extension);
+            },
+            /**
+             * Removes the given extension from the list of extensions.
+             *
+             * @param extension the extension to remove
+             * @return whether the extension was removed
+             */
+            removeExtension: function(extension) {
+                let index = _extensions.indexOf(extension);
+                if (index >= 0) {
+                    _extensions.splice(index, 1);
+                    return true;
+                }
+                return false;
+            },
+            /**
+             * @returns {*[]} the list of extensions
+             */
+            get extensions() {
+                return _extensions.slice();
             },
             /**
              * @param event the event type
@@ -870,17 +927,18 @@ module.exports = function() {
             /**
              * Delivers a message to the remote client represented by this ServerSession.
              *
-             * @param sender the session that sends the message
-             * @param channelName the message channel
-             * @param data the message data
+             * @param {ServerSession} sender the session that sends the message
+             * @param {string} channelName the message channel
+             * @param {object} data the message data
+             * @param {function(*, boolean)} callback the callback notified when the deliver completes
              */
-            deliver: function(sender, channelName, data) {
+            deliver: function(sender, channelName, data, callback) {
                 var message = {
                     channel: channelName,
                     data: data
                 };
                 cometd._log('cometd.session', 'delivering', message, 'to', this.id);
-                this._deliver(sender, message);
+                this._deliver(sender, message, callback);
             },
             /**
              * @returns {Array.<ServerChannel>} the channels this session is subscribed to
@@ -906,27 +964,52 @@ module.exports = function() {
             /**
              * Disconnects this session from the server side.
              *
+             * @param callback the callback notified when the deliver completes
              * @returns {boolean} whether the session has been disconnected
              */
-            disconnect: function() {
+            disconnect: function(callback) {
                 var removed = cometd._removeServerSession(this, false);
                 if (removed) {
                     this._deliver(this, {
                         successful: true,
                         channel: '/meta/disconnect'
-                    });
+                    }, callback);
                 }
                 return removed;
             },
 
             // PRIVATE APIs.
 
-            _deliver: function(sender, message) {
+            _deliver: function(sender, message, callback) {
+                var session = this;
+                callback = callback || _noop;
+                cometd._extendOutgoing(sender, session, message, function(failure, result) {
+                    if (failure) {
+                        callback(failure);
+                    } else if (result) {
+                        session._deliver1(sender, message, callback);
+                    } else {
+                        callback(null, false);
+                    }
+                });
+            },
+            _deliver1: function(sender, message, callback) {
                 // TODO: avoid delivering to self ?
-                _offer(_serialize(message));
-                if (_batch === 0) {
-                    this._flush();
-                }
+                var session = this;
+                callback = callback || _noop;
+                this._extendOutgoing(sender, session, message, function(failure, result) {
+                    if (failure) {
+                        callback(failure);
+                    } else if (result) {
+                        _offer(_serialize(result));
+                        if (_batch === 0) {
+                            session._flush();
+                        }
+                        callback(null, true);
+                    } else {
+                        callback(null, false);
+                    }
+                });
             },
             get _hasMessages() {
                 return _queue.length > 0;
@@ -1020,6 +1103,43 @@ module.exports = function() {
             },
             get _isBatching() {
                 return _batch > 0;
+            },
+            _extendIncoming: function(message, callback) {
+                var session = this;
+                _asyncFoldLeft(_extensions, true, function(result, extension, loop) {
+                    if (result) {
+                        if (extension.incoming) {
+                            try {
+                                extension.incoming(session, message, loop);
+                            } catch (failure) {
+                                cometd._log('cometd.session', 'extension failure', failure, failure.stack);
+                                loop(null, true);
+                            }
+                        } else {
+                            loop(null, true);
+                        }
+                    } else {
+                        loop(null, false);
+                    }
+                }, callback);
+            },
+            _extendOutgoing(sender, session, message, callback) {
+                _asyncFoldLeft(_extensions.slice().reverse(), message, function(result, extension, loop) {
+                    if (result) {
+                        if (extension.outgoing) {
+                            try {
+                                extension.outgoing(sender, session, result, loop);
+                            } catch (failure) {
+                                cometd._log('cometd.session', 'extension failure', failure, failure.stack);
+                                loop(null, result);
+                            }
+                        } else {
+                            loop(null, result);
+                        }
+                    } else {
+                        loop(null, result);
+                    }
+                }, callback);
             }
         };
     }
@@ -1049,6 +1169,7 @@ module.exports = function() {
             sweepPeriod: 997
         }, options);
         var _httpTransport;
+        var _extensions = [];
         var _channels = {};
         var _sessions = {};
         var _listeners = {};
@@ -1320,9 +1441,30 @@ module.exports = function() {
                 var subscribers = channel.subscribers;
                 _self._log('cometd.server', 'notifying', subscribers.length, 'subscribers on', channel.name);
                 subscribers.forEach(function(subscriber) {
-                    subscriber._deliver(session, message);
+                    subscriber._deliver1(session, message);
                 });
             });
+        }
+
+        function _publish1(channel, session, message, incoming, callback) {
+            if (channel.broadcast) {
+                _self._extendOutgoing(session, null, message, function(failure, result) {
+                    if (failure) {
+                        callback(failure);
+                    } else if (result) {
+                        _publish2(channel, session, message, callback);
+                    } else {
+                        _error(message.reply, '404::message_deleted');
+                        callback();
+                    }
+                });
+            } else {
+                if (incoming) {
+                    _publish2(channel, session, message, callback);
+                } else {
+                    callback(new Error('cannot publish to non-broadcast channel ' + channel.name));
+                }
+            }
         }
 
         function _publish2(channel, session, message, callback) {
@@ -1344,7 +1486,7 @@ module.exports = function() {
                         _metaDisconnect(session, message, callback);
                         break;
                     default:
-                        callback(new Error('Invalid channel ' + channel.id));
+                        callback(new Error('invalid channel ' + channel.id));
                         break;
                 }
             } else {
@@ -1355,17 +1497,38 @@ module.exports = function() {
             }
         }
 
+        function _process1(session, message, callback) {
+            var channelName = message.channel;
+            session._cancelExpiration(channelName === '/meta/connect');
+            var channel = _channels[channelName];
+            if (!channel) {
+                _canCreate(session, message, channelName, function(failure, result) {
+                    if (failure) {
+                        callback(failure);
+                    } else if (result) {
+                        channel = _self.createServerChannel(channelName);
+                        _process2(channel, session, message, callback);
+                    } else {
+                        _error(message.reply, '403::channel_denied');
+                        callback();
+                    }
+                });
+            } else {
+                _process2(channel, session, message, callback);
+            }
+        }
+
         function _process2(channel, session, message, callback) {
             var reply = message.reply;
             if (channel.meta) {
-                _self._publish(channel, session, message, callback);
+                _self._publish(channel, session, message, true, callback);
             } else {
                 _canPublish(channel, session, message, function(failure, result) {
                     if (failure) {
                         callback(failure);
                     } else if (result) {
                         reply.successful = true;
-                        _self._publish(channel, session, message, callback);
+                        _self._publish(channel, session, message, true, callback);
                     } else {
                         _error(reply, '403::publish_denied');
                         callback();
@@ -1434,6 +1597,35 @@ module.exports = function() {
              */
             listeners: function(event) {
                 return _listeners[event] || [];
+            },
+            /**
+             * Adds the given extension to the list of extensions.
+             * TODO: document extension method signature
+             *
+             * @param extension the extension to add
+             */
+            addExtension: function(extension) {
+                _extensions.push(extension);
+            },
+            /**
+             * Removes the given extension from the list of extensions.
+             *
+             * @param extension the extension to remove
+             * @return whether the extension was removed
+             */
+            removeExtension: function(extension) {
+                let index = _extensions.indexOf(extension);
+                if (index >= 0) {
+                    _extensions.splice(index, 1);
+                    return true;
+                }
+                return false;
+            },
+            /**
+             * @returns {*[]} the list of extensions
+             */
+            get extensions() {
+                return _extensions.slice();
             },
             /**
              * The function that handles HTTP request and response,
@@ -1525,41 +1717,41 @@ module.exports = function() {
                     value: reply
                 });
 
-                var channelName = message.channel;
-
                 if (!session) {
                     _unknown(reply);
                     callback();
                 } else {
-                    if (!channelName) {
+                    if (!message.channel) {
                         _error(reply, '400::channel_missing');
                         callback();
                     } else {
-                        session._cancelExpiration(channelName === '/meta/connect');
-                        var channel = _channels[channelName];
-                        if (!channel) {
-                            _canCreate(session, message, channelName, function(failure, result) {
-                                if (failure) {
-                                    callback(failure);
-                                } else if (result) {
-                                    channel = _self.createServerChannel(channelName);
-                                    _process2(channel, session, message, callback);
+                        this._extendIncoming(session, message, function(failure, result) {
+                            if (failure) {
+                                callback(failure);
+                            } else if (result) {
+                                if (session) {
+                                    session._extendIncoming(message, function(failure, result) {
+                                        if (failure) {
+                                            callback(failure);
+                                        } else if (result) {
+                                            _process1(session, message, callback);
+                                        } else {
+                                            _error(reply, '404::message_deleted');
+                                            callback();
+                                        }
+                                    });
                                 } else {
-                                    _error(reply, '403::channel_denied');
-                                    callback();
+                                    _process1(session, message, callback);
                                 }
-                            });
-                        } else {
-                            _process2(channel, session, message, callback);
-                        }
+                            } else {
+                                _error(reply, '404::message_deleted');
+                                callback();
+                            }
+                        });
                     }
                 }
             },
-            _newServerSession: function() {
-                var id = crypto.randomBytes(20).toString('hex');
-                return new ServerSession(_self, id);
-            },
-            _publish: function(channel, session, message, callback) {
+            _publish: function(channel, session, message, incoming, callback) {
                 _self._log('cometd.server', 'publishing to', channel.name, message);
                 var broadcast = channel.broadcast;
                 if (broadcast) {
@@ -1570,11 +1762,67 @@ module.exports = function() {
                     if (failure) {
                         callback(failure);
                     } else if (result) {
-                        _publish2(channel, session, message, callback);
+                        _publish1(channel, session, message, incoming, callback);
                     } else {
+                        // TODO: message has been deleted, call _error()?
                         callback();
                     }
                 });
+            },
+            _extendIncoming: function(session, message, callback) {
+                _asyncFoldLeft(_extensions, true, function(result, extension, loop) {
+                    if (result) {
+                        if (extension.incoming) {
+                            try {
+                                extension.incoming(session, message, loop);
+                            } catch (failure) {
+                                _self._log('cometd.server', 'extension failure', failure, failure.stack);
+                                loop(null, true);
+                            }
+                        } else {
+                            loop(null, true);
+                        }
+                    } else {
+                        loop(null, false);
+                    }
+                }, callback);
+            },
+            _extendOutgoing: function(sender, session, message, callback) {
+                _asyncFoldLeft(_extensions.slice().reverse(), true, function(result, extension, loop) {
+                    if (result) {
+                        if (extension.outgoing) {
+                            try {
+                                extension.outgoing(session, session, message, loop);
+                            } catch (failure) {
+                                _self._log('cometd.server', 'extension failure', failure, failure.stack);
+                                loop(null, true);
+                            }
+                        } else {
+                            loop(null, true);
+                        }
+                    } else {
+                        loop(null, false);
+                    }
+                }, callback);
+            },
+            _extendReply: function(session, reply, callback) {
+                this._extendOutgoing(session, session, reply, function(failure, result) {
+                    if (failure) {
+                        callback(failure);
+                    } else if (result) {
+                        if (session) {
+                            session._extendOutgoing(session, session, reply, callback);
+                        } else {
+                            callback(null, reply);
+                        }
+                    } else {
+                        callback(null);
+                    }
+                });
+            },
+            _newServerSession: function() {
+                var id = crypto.randomBytes(20).toString('hex');
+                return new ServerSession(_self, id);
             },
             _removeServerSession: function(session, timeout) {
                 var existing = _sessions[session.id];
@@ -1622,6 +1870,9 @@ module.exports = function() {
          */
         createCometDServer: function(options) {
             return new CometDServer(options);
+        },
+        AcknowledgmentExtension: function() {
+            return {};
         }
     };
 }();
