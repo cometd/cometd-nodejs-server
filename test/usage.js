@@ -1,20 +1,22 @@
-var http = require('http');
-var assert = require('assert');
-var cometd = require('..');
+'use strict';
+
+const http = require('http');
+const assert = require('assert');
+const cometd = require('..');
 require('cometd-nodejs-client').adapt();
-var clientLib = require('cometd');
+const clientLib = require('cometd');
 
-describe('usage', function() {
-    var _cometd;
-    var _server;
-    var _client;
-    var _uri;
+describe('usage', () => {
+    let _cometd;
+    let _server;
+    let _client;
+    let _uri;
 
-    beforeEach(function(done) {
+    beforeEach(done => {
         _cometd = cometd.createCometDServer();
         _server = http.createServer(_cometd.handle);
-        _server.listen(0, 'localhost', function() {
-            var port = _server.address().port;
+        _server.listen(0, 'localhost', () => {
+            const port = _server.address().port;
             console.log('listening on localhost:' + port);
             _uri = 'http://localhost:' + port + '/cometd';
             _client = new clientLib.CometD();
@@ -25,32 +27,32 @@ describe('usage', function() {
         });
     });
 
-    afterEach(function() {
+    afterEach(() => {
         _server.close();
         _cometd.close();
     });
 
-    it('notifies /meta/handshake listener', function(done) {
-        var metaHandshake = _cometd.getServerChannel('/meta/handshake');
-        metaHandshake.addListener('message', function(session, channel, message, callback) {
+    it('notifies /meta/handshake listener', done => {
+        const metaHandshake = _cometd.getServerChannel('/meta/handshake');
+        metaHandshake.addListener('message', (session, channel, message, callback) => {
             assert.ok(session.id);
             assert.strictEqual(channel.name, '/meta/handshake');
             assert.strictEqual(message.channel, '/meta/handshake');
             callback();
         });
 
-        _client.handshake(function(reply) {
+        _client.handshake(reply => {
             assert.strictEqual(reply.successful, true);
-            _client.disconnect(function() {
+            _client.disconnect(() => {
                 done();
             });
         });
     });
 
-    it('notifies broadcast channel listener', function(done) {
-        var channelName = '/foo';
-        var broadcast = _cometd.createServerChannel(channelName);
-        broadcast.addListener('message', function(session, channel, message, callback) {
+    it('notifies broadcast channel listener', done => {
+        const channelName = '/foo';
+        const broadcast = _cometd.createServerChannel(channelName);
+        broadcast.addListener('message', (session, channel, message, callback) => {
             assert.ok(session.id);
             assert.strictEqual(channel.name, channelName);
             assert.strictEqual(message.channel, channelName);
@@ -58,11 +60,11 @@ describe('usage', function() {
             callback();
         });
 
-        _client.handshake(function(reply) {
+        _client.handshake(reply => {
             if (reply.successful) {
-                _client.publish(channelName, 'data', function(msgReply) {
+                _client.publish(channelName, 'data', msgReply => {
                     if (msgReply.successful) {
-                        _client.disconnect(function() {
+                        _client.disconnect(() => {
                             done();
                         });
                     }
@@ -71,21 +73,21 @@ describe('usage', function() {
         });
     });
 
-    it('records subscription', function(done) {
-        var channelName = '/bar';
-        _client.handshake(function(reply) {
+    it('records subscription', done => {
+        const channelName = '/bar';
+        _client.handshake(reply => {
             if (reply.successful) {
-                _client.subscribe(channelName, function(msg) {
-                }, function(r) {
+                _client.subscribe(channelName, () => {
+                }, r => {
                     if (r.successful) {
-                        var channel = _cometd.getServerChannel(channelName);
+                        const channel = _cometd.getServerChannel(channelName);
                         assert.ok(channel);
-                        var subscribers = channel.subscribers;
+                        const subscribers = channel.subscribers;
                         assert.strictEqual(subscribers.length, 1);
-                        var subscriptions = subscribers[0].subscriptions;
+                        const subscriptions = subscribers[0].subscriptions;
                         assert.strictEqual(subscriptions.length, 1);
                         assert.strictEqual(channel, subscriptions[0]);
-                        _client.disconnect(function() {
+                        _client.disconnect(() => {
                             done();
                         });
                     }
@@ -94,18 +96,18 @@ describe('usage', function() {
         });
     });
 
-    it('delivers server-side message without outstanding /meta/connect', function(done) {
-        var channelName = '/baz';
-        _client.addListener(channelName, function(msg) {
+    it('delivers server-side message without outstanding /meta/connect', done => {
+        const channelName = '/baz';
+        _client.addListener(channelName, msg => {
             assert.ok(msg.data);
-            _client.disconnect(function() {
+            _client.disconnect(() => {
                 done();
             });
         });
 
-        _client.handshake(function(reply) {
+        _client.handshake(reply => {
             if (reply.successful) {
-                var session = _cometd.getServerSession(reply.clientId);
+                const session = _cometd.getServerSession(reply.clientId);
                 // The /meta/connect did not leave the client yet,
                 // so here we call deliver() and message will be queued;
                 // when the /meta/connect arrives on server the message
@@ -115,16 +117,16 @@ describe('usage', function() {
         });
     });
 
-    it('publishes server-side message', function(done) {
-        var channelName = "/fuz";
-        _client.handshake(function(hs) {
+    it('publishes server-side message', done => {
+        const channelName = "/fuz";
+        _client.handshake(hs => {
             if (hs.successful) {
-                _client.subscribe(channelName, function(msg) {
+                _client.subscribe(channelName, msg => {
                     assert.ok(msg.data);
-                    _client.disconnect(function() {
+                    _client.disconnect(() => {
                         done();
                     });
-                }, function(ss) {
+                }, ss => {
                     if (ss.successful) {
                         _cometd.getServerChannel(channelName).publish(null, 'data');
                     }
@@ -133,17 +135,17 @@ describe('usage', function() {
         });
     });
 
-    it('publishes client-side message', function(done) {
-        var channelName = '/gah';
-        _client.handshake(function(hs) {
+    it('publishes client-side message', done => {
+        const channelName = '/gah';
+        _client.handshake(hs => {
             if (hs.successful) {
-                _client.subscribe(channelName, function(msg) {
+                _client.subscribe(channelName, msg => {
                     assert.strictEqual(msg.reply, undefined);
                     assert.ok(msg.data);
-                    _client.disconnect(function() {
+                    _client.disconnect(() => {
                         done();
                     });
-                }, function(ss) {
+                }, ss => {
                     if (ss.successful) {
                         _client.publish(channelName, 'data');
                     }
@@ -152,17 +154,17 @@ describe('usage', function() {
         });
     });
 
-    it('receives server-side publish via /meta/connect', function(done) {
-        var channelName = '/hua';
-        _client.handshake(function(hs) {
+    it('receives server-side publish via /meta/connect', done => {
+        const channelName = '/hua';
+        _client.handshake(hs => {
             if (hs.successful) {
-                var session = _cometd.getServerSession(hs.clientId);
-                session.addListener('suspended', function() {
+                const session = _cometd.getServerSession(hs.clientId);
+                session.addListener('suspended', () => {
                     _cometd.getServerChannel(channelName).publish(null, 'data');
                 });
-                _client.subscribe(channelName, function(msg) {
+                _client.subscribe(channelName, msg => {
                     assert.ok(msg.data);
-                    _client.disconnect(function() {
+                    _client.disconnect(() => {
                         done();
                     });
                 });
@@ -170,26 +172,26 @@ describe('usage', function() {
         });
     });
 
-    it('invokes handshake policy', function(done) {
+    it('invokes handshake policy', done => {
         _cometd.policy = {
-            canHandshake: function(session, message, callback) {
+            canHandshake: (session, message, callback) => {
                 callback(null, message.credentials);
             }
         };
 
         // Try without authentication fields.
-        _client.handshake({}, function(hs1) {
+        _client.handshake({}, hs1 => {
             assert.strictEqual(hs1.successful, false);
             assert.ok(hs1.advice);
             assert.strictEqual(hs1.advice.reconnect, 'none');
 
             // Try with authentication fields.
-            setTimeout(function() {
+            setTimeout(() => {
                 _client.handshake({
                     credentials: 'secret'
-                }, function(hs2) {
+                }, hs2 => {
                     assert.strictEqual(hs2.successful, true);
-                    _client.disconnect(function() {
+                    _client.disconnect(() => {
                         done();
                     });
                 });
@@ -197,29 +199,29 @@ describe('usage', function() {
         });
     });
 
-    it('provides access to HTTP context', function(done) {
-        var channelName = '/service/kal';
-        _cometd.createServerChannel(channelName).addListener('message', function(session, channel, message, callback) {
+    it('provides access to HTTP context', done => {
+        const channelName = '/service/kal';
+        _cometd.createServerChannel(channelName).addListener('message', (session, channel, message, callback) => {
             assert.ok(_cometd.context.request);
             assert.ok(_cometd.context.response);
             session.deliver(null, channelName, message.data);
             callback();
         });
 
-        _client.addListener(channelName, function() {
+        _client.addListener(channelName, () => {
             done();
         });
 
-        _client.handshake(function(hs) {
+        _client.handshake(hs => {
             if (hs.successful) {
                 _client.publish(channelName, 'luz');
             }
         });
     });
 
-    it('inheritance', function(done) {
+    it('inheritance', done => {
         function Base() {
-            var _private = 1;
+            const _private = 1;
 
             function _internal() {
                 return this.getConstant();
@@ -229,7 +231,7 @@ describe('usage', function() {
             // Can be overridden in "subclasses", and invoked
             // from "superclass" via "this" (as long as subclasses
             // pass the right "this" using call()).
-            this.getConstant = function() {
+            this.getConstant = () => {
                 throw 'abstract';
             };
 
@@ -241,7 +243,7 @@ describe('usage', function() {
             return this;
         }
 
-        Base.extends = function(parentObject) {
+        Base.extends = parentObject => {
             // We need a fake function to
             // access the "prototype" property.
             function F() {
@@ -249,21 +251,19 @@ describe('usage', function() {
 
             // Establish the inheritance chain.
             F.prototype = parentObject;
-            var f = new F();
+            const f = new F();
             // f -- inherits from --> F.prototype -- inherits from --> Object.prototype.
             // Now I can add functions to f.
             return f;
         };
 
         function Derived() {
-            var _private = 5;
-            var _super = new Base();
-            var _self = Base.extends(_super);
+            const _private = 5;
+            const _super = new Base();
+            const _self = Base.extends(_super);
 
             // Overriding "abstract" function.
-            _self.getConstant = function() {
-                return 10;
-            };
+            _self.getConstant = () => 10;
 
             // Overriding "concrete" function and calling super.
             _self.getBaseValue = function() {
@@ -279,7 +279,7 @@ describe('usage', function() {
             return _self;
         }
 
-        var d = new Derived();
+        const d = new Derived();
 
         // 1 + 10 + 2
         assert.strictEqual(d.getBaseValue(), 13);

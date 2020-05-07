@@ -1,3 +1,5 @@
+'use strict';
+
 const assert = require('assert');
 const http = require('http');
 const serverLib = require('..');
@@ -5,16 +7,16 @@ require('cometd-nodejs-client').adapt();
 const clientLib = require('cometd');
 const Latch  = require('./latch.js');
 
-describe('extensions', function() {
+describe('extensions', () => {
     let _server;
     let _http;
     let _client;
     let _uri;
 
-    beforeEach(function(done) {
+    beforeEach(done => {
         _server = serverLib.createCometDServer();
         _http = http.createServer(_server.handle);
-        _http.listen(0, 'localhost', function() {
+        _http.listen(0, 'localhost', () => {
             let port = _http.address().port;
             console.log('listening on localhost:' + port);
             _uri = 'http://localhost:' + port + '/cometd';
@@ -26,18 +28,18 @@ describe('extensions', function() {
         });
     });
 
-    afterEach(function() {
+    afterEach(() => {
         _http.close();
         _server.close();
     });
 
-    it('calls extension.incoming', function(done) {
+    it('calls extension.incoming', done => {
         let latch = new Latch(3, done);
         _server.addExtension({
-            incoming: function(cometd, session, message, callback) {
+            incoming: (cometd, session, message, callback) => {
                 latch.signal();
                 session.addExtension({
-                    incoming: function(session, message, callback) {
+                    incoming: (session, message, callback) => {
                         latch.signal();
                         callback(null, true);
                     }
@@ -46,7 +48,7 @@ describe('extensions', function() {
             }
         });
 
-        _client.handshake(function(hs) {
+        _client.handshake(hs => {
             if (hs.successful) {
                 _client.disconnect();
                 latch.signal();
@@ -54,9 +56,9 @@ describe('extensions', function() {
         });
     });
 
-    it('deletes message from server extension', function(done) {
+    it('deletes message from server extension', done => {
         _server.addExtension({
-            incoming: function(cometd, session, message, callback) {
+            incoming: (cometd, session, message, callback) => {
                 if (message.channel === '/meta/handshake') {
                     let advice = message.reply.advice || {};
                     message.reply.advice = advice;
@@ -68,7 +70,7 @@ describe('extensions', function() {
             }
         });
 
-        _client.handshake(function(hs) {
+        _client.handshake(hs => {
             assert.strictEqual(hs.successful, false);
             assert.ok(hs.error);
             assert(hs.error.indexOf('message_deleted') > 0);
@@ -76,11 +78,11 @@ describe('extensions', function() {
         });
     });
 
-    it('deletes message from session extension', function(done) {
+    it('deletes message from session extension', done => {
         _server.addExtension({
-            incoming: function(cometd, session, message, callback) {
+            incoming: (cometd, session, message, callback) => {
                 session.addExtension({
-                    incoming: function(session, message, callback) {
+                    incoming: (session, message, callback) => {
                         if (message.channel === '/meta/handshake') {
                             let advice = message.reply.advice || {};
                             message.reply.advice = advice;
@@ -95,7 +97,7 @@ describe('extensions', function() {
             }
         });
 
-        _client.handshake(function(hs) {
+        _client.handshake(hs => {
             assert.strictEqual(hs.successful, false);
             assert.ok(hs.error);
             assert(hs.error.indexOf('message_deleted') > 0);
@@ -103,14 +105,14 @@ describe('extensions', function() {
         });
     });
 
-    it('calls extension.outgoing in reverse order', function(done) {
+    it('calls extension.outgoing in reverse order', done => {
         let counter = 0;
         _server.addExtension({
-            incoming: function(cometd, session, message, callback) {
+            incoming: (cometd, session, message, callback) => {
                 if (counter === 0) {
                     counter = 1;
                     session.addExtension({
-                        incoming: function(session, message, callback) {
+                        incoming: (session, message, callback) => {
                             if (counter === 2) {
                                 counter = 3;
                                 callback(null, true);
@@ -118,7 +120,7 @@ describe('extensions', function() {
                                 callback(new Error('' + counter));
                             }
                         },
-                        outgoing: function(sender, session, message, callback) {
+                        outgoing: (sender, session, message, callback) => {
                             if (counter === 7) {
                                 counter = 8;
                                 callback(null, message);
@@ -132,7 +134,7 @@ describe('extensions', function() {
                     callback(new Error('' + counter));
                 }
             },
-            outgoing: function(cometd, sender, session, message, callback) {
+            outgoing: (cometd, sender, session, message, callback) => {
                 if (counter === 5) {
                     counter = 6;
                     callback(null, true);
@@ -142,11 +144,11 @@ describe('extensions', function() {
             }
         });
         _server.addExtension({
-            incoming: function(cometd, session, message, callback) {
+            incoming: (cometd, session, message, callback) => {
                 if (counter === 1) {
                     counter = 2;
                     session.addExtension({
-                        incoming: function(session, message, callback) {
+                        incoming: (session, message, callback) => {
                             if (counter === 3) {
                                 counter = 4;
                                 callback(null, true);
@@ -154,7 +156,7 @@ describe('extensions', function() {
                                 callback(new Error('' + counter));
                             }
                         },
-                        outgoing: function(sender, session, message, callback) {
+                        outgoing: (sender, session, message, callback) => {
                             if (counter === 6) {
                                 counter = 7;
                                 callback(null, message);
@@ -168,7 +170,7 @@ describe('extensions', function() {
                     callback(new Error('' + counter));
                 }
             },
-            outgoing: function(cometd, sender, session, message, callback) {
+            outgoing: (cometd, sender, session, message, callback) => {
                 if (counter === 4) {
                     counter = 5;
                     callback(null, true);
@@ -178,7 +180,7 @@ describe('extensions', function() {
             }
         });
 
-        _client.handshake(function(hs) {
+        _client.handshake(hs => {
             assert.strictEqual(hs.successful, true);
             assert.strictEqual(counter, 8);
             _client.disconnect();

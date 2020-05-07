@@ -1,20 +1,22 @@
-var assert = require('assert');
-var cometd = require('..');
+'use strict';
 
-describe('library', function() {
-    it('exports factory method', function() {
+const assert = require('assert');
+const cometd = require('..');
+
+describe('library', () => {
+    it('exports factory method', () => {
         assert.ok(cometd.createCometDServer);
     });
 
-    it('constructs object', function() {
-        var server = cometd.createCometDServer();
+    it('constructs object', () => {
+        const server = cometd.createCometDServer();
         assert.ok(server);
         server.close();
     });
 
-    it('constructs object with options', function() {
-        var options = {};
-        var server = cometd.createCometDServer(options);
+    it('constructs object with options', () => {
+        const options = {};
+        const server = cometd.createCometDServer(options);
         assert.notStrictEqual(server.options, options);
         server.close();
     });

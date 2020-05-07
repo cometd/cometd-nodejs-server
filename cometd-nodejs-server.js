@@ -1,14 +1,16 @@
-var crypto = require('crypto');
+'use strict';
 
-module.exports = function() {
+const crypto = require('crypto');
+
+module.exports = (() => {
     function _mixin(target, objects) {
-        var result = target || {};
-        for (var i = 1; i < arguments.length; ++i) {
-            var object = arguments[i];
+        const result = target || {};
+        for (let i = 1; i < arguments.length; ++i) {
+            const object = arguments[i];
             if (object === undefined || object === null) {
                 continue;
             }
-            for (var propName in object) {
+            for (const propName in object) {
                 if (Object.prototype.hasOwnProperty.call(object, propName)) {
                     result[propName] = object[propName];
                 }
@@ -47,13 +49,13 @@ module.exports = function() {
      * @private
      */
     function _asyncFoldLeft(array, zero, fn, callback) {
-        var result = zero;
+        let result = zero;
 
         function _next(index) {
-            for (var i = index; i < array.length; ++i) {
-                var sync = false;
-                var async = false;
-                fn(result, array[i], function(failure, r) {
+            for (let i = index; i < array.length; ++i) {
+                let sync = false;
+                let async = false;
+                fn(result, array[i], (failure, r) => {
                     if (failure) {
                         callback(failure);
                     } else {
@@ -76,7 +78,7 @@ module.exports = function() {
     }
 
     function _addListener(listeners, event, fn) {
-        var list = listeners[event];
+        let list = listeners[event];
         if (!list) {
             list = [];
             listeners[event] = list;
@@ -85,9 +87,9 @@ module.exports = function() {
     }
 
     function _removeListener(listeners, event, fn) {
-        var list = listeners[event];
+        const list = listeners[event];
         if (list) {
-            for (var i = 0; i < list.length; ++i) {
+            for (let i = 0; i < list.length; ++i) {
                 if (list[i] === fn) {
                     list.splice(i, 1);
                     if (list.length === 0) {
@@ -99,7 +101,7 @@ module.exports = function() {
     }
 
     function _notifyEvent(listeners, args) {
-        listeners.forEach(function(listener) {
+        listeners.forEach(listener => {
             listener.apply(undefined, args);
         });
     }
@@ -116,15 +118,15 @@ module.exports = function() {
     }
 
     function ServerTransport(cometd) {
-        this._option = function(options, prefix, name, dftValue) {
-            var result = options[name];
-            var segments = prefix.split('.');
-            var pfx = null;
-            for (var i = 0; i < segments.length; ++i) {
-                var segment = segments[i];
+        this._option = (options, prefix, name, dftValue) => {
+            let result = options[name];
+            const segments = prefix.split('.');
+            let pfx = null;
+            for (let i = 0; i < segments.length; ++i) {
+                const segment = segments[i];
                 pfx = pfx === null ? segment : pfx + '.' + segment;
-                var key = pfx + '.' + name;
-                var value = options[key];
+                const key = pfx + '.' + name;
+                const value = options[key];
                 if (value !== undefined) {
                     result = value;
                 }
@@ -136,7 +138,7 @@ module.exports = function() {
         };
 
         this.option = function(name) {
-            var dftValue = undefined;
+            let dftValue = undefined;
             switch (name) {
                 case 'interval':
                     dftValue = 0;
@@ -154,7 +156,7 @@ module.exports = function() {
         return this;
     }
 
-    ServerTransport.extends = function(parentObject) {
+    ServerTransport.extends = parentObject => {
         function F() {
         }
 
@@ -163,20 +165,20 @@ module.exports = function() {
     };
 
     function HTTPTransport(cometd) {
-        var _super = new ServerTransport(cometd);
-        var _self = ServerTransport.extends(_super);
-        var _prefix = 'long-polling.json';
-        var _sessions = {};
-        var _browserMetaConnects = {};
-        var _requests = 0;
+        const _super = new ServerTransport(cometd);
+        const _self = ServerTransport.extends(_super);
+        const _prefix = 'long-polling.json';
+        const _sessions = {};
+        const _browserMetaConnects = {};
+        let _requests = 0;
 
         function _parseCookies(text) {
-            var cookies = {};
+            const cookies = {};
             if (text) {
-                text.split(';').forEach(function(cookie) {
-                    var parts = cookie.split('=');
+                text.split(';').forEach(cookie => {
+                    const parts = cookie.split('=');
                     if (parts.length > 1) {
-                        var name = parts[0].trim();
+                        const name = parts[0].trim();
                         cookies[name] = parts[1].trim();
                     }
                 });
@@ -185,10 +187,10 @@ module.exports = function() {
         }
 
         function _findSessions(cookies) {
-            for (var cookie in cookies) {
+            for (const cookie in cookies) {
                 if (Object.prototype.hasOwnProperty.call(cookies, cookie)) {
                     if (cookie === _self.option('browserCookieName')) {
-                        var browserId = cookies[cookie];
+                        const browserId = cookies[cookie];
                         return _sessions[browserId] || null;
                     }
                 }
@@ -201,9 +203,9 @@ module.exports = function() {
                 return cometd._newServerSession();
             }
             if (sessions) {
-                var sessionId = message.clientId;
-                for (var i = 0; i < sessions.length; ++i) {
-                    var session = sessions[i];
+                const sessionId = message.clientId;
+                for (let i = 0; i < sessions.length; ++i) {
+                    const session = sessions[i];
                     if (session.id === sessionId) {
                         return session;
                     }
@@ -213,21 +215,21 @@ module.exports = function() {
         }
 
         function _respond(context, local, session, callback) {
-            var response = context.response;
+            const response = context.response;
             response.statusCode = 200;
             response.setHeader('Content-Type', 'application/json');
 
-            var content = '[';
+            let content = '[';
             // Serialize the queue.
-            var queue = [];
+            let queue = [];
             if (session && local.sendQueue) {
                 queue = session._drainQueue(local.replies);
                 cometd._log(_prefix, 'sending', queue.length, 'queued messages for', session.id);
-                queue.forEach(function(m, i) {
+                queue.forEach((m, i) => {
                     if (i > 0) {
                         content += ',';
                     }
-                    var json = m._json;
+                    let json = m._json;
                     if (!json) {
                         json = JSON.stringify(m);
                     }
@@ -236,7 +238,7 @@ module.exports = function() {
             }
             // Serialize the replies.
             cometd._log(_prefix, 'sending', local.replies.length, 'replies for session', session ? session.id : 'null');
-            local.replies.forEach(function(reply, i) {
+            local.replies.forEach((reply, i) => {
                 if (i === 0) {
                     if (queue.length > 0) {
                         content += ',';
@@ -244,7 +246,7 @@ module.exports = function() {
                 } else if (i > 0) {
                     content += ',';
                 }
-                var json = reply._json;
+                let json = reply._json;
                 if (!json) {
                     json = JSON.stringify(reply);
                 }
@@ -252,7 +254,7 @@ module.exports = function() {
             });
             content += ']';
 
-            var finish = function(failure) {
+            const finish = failure => {
                 cometd._log(_prefix, 'request', '#' + context.id, 'finish for session', session ? session.id : 'null');
                 if (session && local.scheduleExpiration) {
                     session._scheduleExpiration(_self.option('interval'), _self.option('maxInterval'));
@@ -260,13 +262,13 @@ module.exports = function() {
                 callback(failure);
             };
 
-            response.addListener('finish', function() {
+            response.addListener('finish', () => {
                 finish();
             });
-            response.addListener('error', function(e) {
+            response.addListener('error', e => {
                 finish(e ? e : new Error('response error'));
             });
-            var requestError = response._cometd_request_error;
+            const requestError = response._cometd_request_error;
             if (requestError) {
                 finish(requestError);
             } else if (!response.socket || response.socket.destroyed) {
@@ -277,14 +279,14 @@ module.exports = function() {
         }
 
         function _addBrowserMetaConnect(session) {
-            var maxSessionsPerBrowser = _self.option('maxSessionsPerBrowser');
+            const maxSessionsPerBrowser = _self.option('maxSessionsPerBrowser');
             if (maxSessionsPerBrowser < 0) {
                 return true;
             } else if (maxSessionsPerBrowser === 0) {
                 return false;
             }
-            var browserId = session._browserId;
-            var count = _browserMetaConnects[browserId];
+            const browserId = session._browserId;
+            let count = _browserMetaConnects[browserId];
             if (count === undefined) {
                 count = _browserMetaConnects[browserId] = 0;
             }
@@ -296,10 +298,10 @@ module.exports = function() {
         }
 
         function _removeBrowserMetaConnect(session) {
-            var maxSessionsPerBrowser = _self.option('maxSessionsPerBrowser');
+            const maxSessionsPerBrowser = _self.option('maxSessionsPerBrowser');
             if (maxSessionsPerBrowser > 0) {
-                var browserId = session._browserId;
-                var count = _browserMetaConnects[browserId];
+                const browserId = session._browserId;
+                const count = _browserMetaConnects[browserId];
                 if (count !== undefined) {
                     --_browserMetaConnects[browserId];
                 }
@@ -307,7 +309,7 @@ module.exports = function() {
         }
 
         function _advise(reply) {
-            var advice = reply.advice;
+            let advice = reply.advice;
             if (!advice) {
                 advice = reply.advice = {};
             }
@@ -317,14 +319,14 @@ module.exports = function() {
         }
 
         function _generateCookie(cookieName, cookieValue) {
-            var result = cookieName + '=' + cookieValue;
+            let result = cookieName + '=' + cookieValue;
             if (_self.option('browserCookieHttpOnly') === true) {
                 result += '; HttpOnly';
             }
             if (_self.option('browserCookieSecure') === true) {
                 result += '; Secure';
             }
-            var sameSite = _self.option('browserCookieSameSite');
+            const sameSite = _self.option('browserCookieSameSite');
             if (sameSite) {
                 result += '; SameSite=' + sameSite;
             }
@@ -332,19 +334,19 @@ module.exports = function() {
         }
 
         function _processMetaHandshake(context, session, message, callback) {
-            cometd._process(session, message, function(failure, result) {
+            cometd._process(session, message, (failure, result) => {
                 if (failure) {
                     callback(failure);
                 } else {
-                    var reply = message.reply;
+                    const reply = message.reply;
                     if (reply.successful) {
-                        var cookieName = _self.option('browserCookieName');
-                        var browserId = context.cookies[cookieName];
+                        const cookieName = _self.option('browserCookieName');
+                        let browserId = context.cookies[cookieName];
                         if (!browserId) {
                             browserId = crypto.randomBytes(20).toString('hex');
                             context.response.setHeader('Set-Cookie', _generateCookie(cookieName, browserId));
                         }
-                        var list = _sessions[browserId];
+                        let list = _sessions[browserId];
                         if (!list) {
                             list = [];
                             _sessions[browserId] = list;
@@ -352,8 +354,8 @@ module.exports = function() {
                         list.push(session);
                         session._browserId = browserId;
 
-                        session.addListener('removed', function() {
-                            var i = list.indexOf(session);
+                        session.addListener('removed', () => {
+                            const i = list.indexOf(session);
                             if (i >= 0) {
                                 list.splice(i, 1);
                             }
@@ -371,27 +373,27 @@ module.exports = function() {
 
         function _processMetaConnect(context, session, message, canSuspend, callback) {
             if (session) {
-                var scheduler = session._scheduler;
+                const scheduler = session._scheduler;
                 if (scheduler) {
                     scheduler.cancel();
                 }
             }
 
-            cometd._process(session, message, function(failure) {
+            cometd._process(session, message, failure => {
                 if (failure) {
                     callback(failure);
                 } else {
-                    var maySuspend = session && (!session._hasMessages || session._isBatching);
-                    var reply = message.reply;
+                    const maySuspend = session && (!session._hasMessages || session._isBatching);
+                    const reply = message.reply;
                     if (canSuspend && maySuspend && reply.successful) {
-                        var allowSuspend = _addBrowserMetaConnect(session);
+                        const allowSuspend = _addBrowserMetaConnect(session);
                         if (allowSuspend) {
                             if (message.advice) {
                                 _advise(reply);
                             }
-                            var timeout = session._calculateTimeout(_self.option('timeout'));
+                            const timeout = session._calculateTimeout(_self.option('timeout'));
                             if (timeout > 0) {
-                                var scheduler = {
+                                const scheduler = {
                                     resume: function() {
                                         if (this._timeout) {
                                             clearTimeout(this._timeout);
@@ -421,12 +423,12 @@ module.exports = function() {
                                             this._flush();
                                         }
                                     },
-                                    _flush: function() {
+                                    _flush: () => {
                                         _removeBrowserMetaConnect(session);
                                         callback(null);
                                     }
                                 };
-                                scheduler._timeout = setTimeout(function() {
+                                scheduler._timeout = setTimeout(() => {
                                     scheduler._expired.call(scheduler);
                                 }, timeout);
                                 session._scheduler = scheduler;
@@ -437,13 +439,13 @@ module.exports = function() {
                                 callback(null);
                             }
                         } else {
-                            var advice = reply.advice;
+                            let advice = reply.advice;
                             if (!advice) {
                                 advice = reply.advice = {};
                             }
                             advice['multiple-clients'] = true;
 
-                            var multiSessionInterval = _self.option('multiSessionInterval');
+                            const multiSessionInterval = _self.option('multiSessionInterval');
                             if (multiSessionInterval > 0) {
                                 advice.reconnect = 'retry';
                                 advice.interval = multiSessionInterval;
@@ -463,7 +465,7 @@ module.exports = function() {
         function _processMessages(request, response, messages, callback) {
             // An internal context used by the implementation to avoid
             // modifying/altering that given to applications via cometd.context.
-            var context = {
+            const context = {
                 id: ++_requests,
                 request: request,
                 response: response,
@@ -479,34 +481,34 @@ module.exports = function() {
                 return;
             }
 
-            var cookies = context.cookies = _parseCookies(request.headers.cookie);
-            var sessions = _findSessions(cookies);
-            var message = messages[0];
-            var session = _findSession(sessions, message);
+            const cookies = context.cookies = _parseCookies(request.headers.cookie);
+            const sessions = _findSessions(cookies);
+            const message = messages[0];
+            const session = _findSession(sessions, message);
             cometd._log(_prefix, 'session', session ? session.id : 'null');
-            var batch = session && message.channel !== '/meta/connect';
+            const batch = session && message.channel !== '/meta/connect';
             if (batch) {
                 session._startBatch();
             }
 
-            var local = {
+            const local = {
                 sendQueue: false,
                 replies: [],
                 scheduleExpiration: false
             };
 
-            _asyncFoldLeft(messages, undefined, function(y, message, loop) {
+            _asyncFoldLeft(messages, undefined, (y, message, loop) => {
                 cometd._log(_prefix, 'processing', message);
                 switch (message.channel) {
                     case '/meta/handshake': {
-                        _processMetaHandshake(context, session, message, function(failure) {
+                        _processMetaHandshake(context, session, message, failure => {
                             if (failure) {
                                 loop(failure);
                             } else {
                                 if (messages.length > 1) {
                                     loop(new Error('protocol violation'));
                                 } else {
-                                    cometd._extendReply(session, message.reply, function(failure, reply) {
+                                    cometd._extendReply(session, message.reply, (failure, reply) => {
                                         if (failure) {
                                             loop(failure);
                                         } else {
@@ -526,12 +528,12 @@ module.exports = function() {
                         break;
                     }
                     case '/meta/connect': {
-                        var canSuspend = messages.length === 1;
-                        _processMetaConnect(context, session, message, canSuspend, function(failure) {
+                        const canSuspend = messages.length === 1;
+                        _processMetaConnect(context, session, message, canSuspend, failure => {
                             if (failure) {
                                 loop(failure);
                             } else {
-                                cometd._extendReply(session, message.reply, function(failure, reply) {
+                                cometd._extendReply(session, message.reply, (failure, reply) => {
                                     if (failure) {
                                         loop(failure);
                                     } else {
@@ -550,11 +552,11 @@ module.exports = function() {
                         break;
                     }
                     default: {
-                        cometd._process(session, message, function(failure) {
+                        cometd._process(session, message, failure => {
                             if (failure) {
                                 loop(failure);
                             } else {
-                                cometd._extendReply(session, message.reply, function(failure, reply) {
+                                cometd._extendReply(session, message.reply, (failure, reply) => {
                                     if (failure) {
                                         loop(failure);
                                     } else {
@@ -573,7 +575,7 @@ module.exports = function() {
                         });
                     }
                 }
-            }, function(failure) {
+            }, failure => {
                 if (failure) {
                     if (response.statusCode < 400) {
                         response.statusCode = 500;
@@ -597,26 +599,24 @@ module.exports = function() {
                 request: request,
                 response: response
             });
-            _processMessages(request, response, messages, function() {
+            _processMessages(request, response, messages, () => {
                 cometd._setContext(null);
             });
         }
 
-        _self.name = function() {
-            return 'long-polling';
-        };
+        _self.name = () => 'long-polling';
 
-        _self.handle = function(request, response) {
+        _self.handle = (request, response) => {
             if (request.method === 'POST') {
                 if (request.body) {
                     _process(request, response, request.body);
                 } else {
-                    var content = '';
+                    let content = '';
                     // TODO: limit message size.
-                    request.addListener('data', function(chunk) {
+                    request.addListener('data', chunk => {
                         content += chunk;
                     });
-                    request.addListener('end', function() {
+                    request.addListener('end', () => {
                         try {
                             _process(request, response, JSON.parse(content));
                         } catch (failure) {
@@ -625,8 +625,8 @@ module.exports = function() {
                             response.end();
                         }
                     });
-                    ['aborted', 'error'].forEach(function(event) {
-                        request.addListener(event, function(e) {
+                    ['aborted', 'error'].forEach(event => {
+                        request.addListener(event, e => {
                             cometd._log(_prefix, 'request', event);
                             response._cometd_request_error = e ? e : new Error('request error');
                         });
@@ -639,11 +639,11 @@ module.exports = function() {
         };
 
         _self.option = function(name) {
-            var result = _super.option(name);
+            const result = _super.option(name);
             if (result !== undefined) {
                 return result;
             }
-            var dftValue = undefined;
+            let dftValue = undefined;
             switch (name) {
                 case 'browserCookieName':
                     dftValue = 'BAYEUX_BROWSER';
@@ -683,24 +683,27 @@ module.exports = function() {
      * @constructor
      */
     function ServerChannel(cometd, name) {
-        var _wildNames = [];
-        var _listeners = {};
-        var _subscribers = {};
+        const _wildNames = [];
+        const _listeners = {};
+        const _subscribers = {};
 
         if (!name || name.charAt(0) !== '/' || name === '/') {
             throw 'invalid channel ' + name;
         }
-        var segments = name.split('/');
-        var lastSegment = segments[segments.length - 1];
+        const segments = name.split('/');
+        const lastSegment = segments[segments.length - 1];
         if (lastSegment !== '*' && lastSegment !== '**') {
-            var c = '/';
-            for (var i = segments.length - 1; i > 0; --i) {
+            let c = '/';
+            for (let i = segments.length - 1; i > 0; --i) {
                 _wildNames.unshift(c + '**');
                 if (i > 1) {
                     c += segments[segments.length - i] + '/';
                 }
             }
             _wildNames.unshift(c + '*');
+        }
+
+        function _noop() {
         }
 
         return {
@@ -742,9 +745,7 @@ module.exports = function() {
              * @param callback the callback notified when the publish completes
              */
             publish: function(sender, data, callback) {
-                callback = callback || function() {
-                    return undefined;
-                };
+                callback = callback || _noop;
                 cometd._publish(this, sender, {
                     channel: name,
                     data: data
@@ -754,16 +755,14 @@ module.exports = function() {
              * @param event the event type
              * @returns {Array.<function>} the listeners for the given event
              */
-            listeners: function(event) {
-                return _listeners[event] || [];
-            },
+            listeners: event => _listeners[event] || [],
             /**
              * Adds a listener function for the given event.
              *
              * @param {string} event the event type
              * @param {function} fn the listener function
              */
-            addListener: function(event, fn) {
+            addListener: (event, fn) => {
                 _addListener(_listeners, event, fn);
             },
             /**
@@ -772,15 +771,15 @@ module.exports = function() {
              * @param {string} event the event type
              * @param {function} fn the listener function
              */
-            removeListener: function(event, fn) {
+            removeListener: (event, fn) => {
                 _removeListener(_listeners, event, fn);
             },
             /**
              * @returns {Array.<ServerSession>} the list of ServerSession subscribed to this channel
              */
             get subscribers() {
-                var result = [];
-                for (var id in _subscribers) {
+                const result = [];
+                for (let id in _subscribers) {
                     if (_subscribers.hasOwnProperty(id)) {
                         result.push(_subscribers[id]);
                     }
@@ -795,7 +794,7 @@ module.exports = function() {
                     callback(null, false);
                 } else {
                     if (this.broadcast) {
-                        var existing = _subscribers[session.id];
+                        const existing = _subscribers[session.id];
                         if (!existing) {
                             _subscribers[session.id] = session;
                             session._subscribed(this);
@@ -807,7 +806,7 @@ module.exports = function() {
                 }
             },
             _unsubscribe: function(session, message, callback) {
-                var existing = _subscribers[session.id];
+                const existing = _subscribers[session.id];
                 if (existing) {
                     delete _subscribers[session.id];
                     session._unsubscribed(this);
@@ -820,12 +819,12 @@ module.exports = function() {
                 if (this.meta) {
                     return;
                 }
-                for (var id in _subscribers) {
+                for (let id in _subscribers) {
                     if (_subscribers.hasOwnProperty(id)) {
                         return;
                     }
                 }
-                for (var event in _listeners) {
+                for (let event in _listeners) {
                     if (_listeners.hasOwnProperty(event)) {
                         return;
                     }
@@ -853,17 +852,17 @@ module.exports = function() {
      * @constructor
      */
     function ServerSession(cometd, id) {
-        var _handshaken = false;
-        var _extensions = [];
-        var _listeners = {};
-        var _subscriptions = [];
-        var _queue = [];
-        var _clientTimeout = -1;
-        var _clientInterval = -1;
-        var _batch = 0;
-        var _scheduleTime = 0;
-        var _expireTime = 0;
-        var _metaConnectDeliveryOnly = false;
+        let _handshaken = false;
+        const _extensions = [];
+        const _listeners = {};
+        const _subscriptions = [];
+        let _queue = [];
+        let _clientTimeout = -1;
+        let _clientInterval = -1;
+        let _batch = 0;
+        let _scheduleTime = 0;
+        let _expireTime = 0;
+        let _metaConnectDeliveryOnly = false;
 
         function _noop() {
         }
@@ -887,7 +886,7 @@ module.exports = function() {
              *
              * @param extension the extension to add
              */
-            addExtension: function(extension) {
+            addExtension: extension => {
                 _extensions.push(extension);
             },
             /**
@@ -896,7 +895,7 @@ module.exports = function() {
              * @param extension the extension to remove
              * @return whether the extension was removed
              */
-            removeExtension: function(extension) {
+            removeExtension: extension => {
                 let index = _extensions.indexOf(extension);
                 if (index >= 0) {
                     _extensions.splice(index, 1);
@@ -914,16 +913,14 @@ module.exports = function() {
              * @param event the event type
              * @returns {Array.<function>} the listeners for the given event
              */
-            listeners: function(event) {
-                return _listeners[event] || [];
-            },
+            listeners: event => _listeners[event] || [],
             /**
              * Adds a listener function for the given event.
              *
              * @param {string} event the event type
              * @param {function} fn the listener function
              */
-            addListener: function(event, fn) {
+            addListener: (event, fn) => {
                 _addListener(_listeners, event, fn);
             },
             /**
@@ -932,7 +929,7 @@ module.exports = function() {
              * @param {string} event the event type
              * @param {function} fn the listener function
              */
-            removeListener: function(event, fn) {
+            removeListener: (event, fn) => {
                 _removeListener(_listeners, event, fn);
             },
             /**
@@ -941,10 +938,10 @@ module.exports = function() {
              * @param {ServerSession} sender the session that sends the message
              * @param {string} channelName the message channel
              * @param {object} data the message data
-             * @param {function(*, boolean)} callback the callback notified when the deliver completes
+             * @param {function(*, boolean)=} callback the callback notified when the deliver completes
              */
             deliver: function(sender, channelName, data, callback) {
-                var message = {
+                const message = {
                     channel: channelName,
                     data: data
                 };
@@ -979,7 +976,7 @@ module.exports = function() {
              * @returns {boolean} whether the session has been disconnected
              */
             disconnect: function(callback) {
-                var removed = cometd._removeServerSession(this, false);
+                const removed = cometd._removeServerSession(this, false);
                 if (removed) {
                     this._deliver(this, {
                         successful: true,
@@ -998,9 +995,9 @@ module.exports = function() {
                 _metaConnectDeliveryOnly = value;
             },
             _deliver: function(sender, message, callback) {
-                var session = this;
+                const session = this;
                 callback = callback || _noop;
-                cometd._extendOutgoing(sender, session, message, function(failure, result) {
+                cometd._extendOutgoing(sender, session, message, (failure, result) => {
                     if (failure) {
                         callback(failure);
                     } else if (result) {
@@ -1012,9 +1009,9 @@ module.exports = function() {
             },
             _deliver1: function(sender, message, callback) {
                 // TODO: avoid delivering to self ?
-                var session = this;
+                const session = this;
                 callback = callback || _noop;
-                this._extendOutgoing(sender, session, message, function(failure, result) {
+                this._extendOutgoing(sender, session, message, (failure, result) => {
                     if (failure) {
                         callback(failure);
                     } else if (result) {
@@ -1035,15 +1032,15 @@ module.exports = function() {
                 return _handshaken;
             },
             _scheduler: null,
-            _handshake: function() {
+            _handshake: () => {
                 _handshaken = true;
             },
             _scheduleExpiration: function(dftInterval, dftMaxInterval) {
                 _scheduleTime = Date.now();
-                var interval = this._calculateInterval(dftInterval);
+                const interval = this._calculateInterval(dftInterval);
                 _expireTime = _scheduleTime + interval + dftMaxInterval;
             },
-            _cancelExpiration: function(metaConnect) {
+            _cancelExpiration: metaConnect => {
                 if (metaConnect) {
                     _expireTime = 0;
                 } else if (_expireTime !== 0) {
@@ -1052,34 +1049,34 @@ module.exports = function() {
             },
             _drainQueue: function(replies) {
                 _notifyEvent(this.listeners('queueDrain'), [this, _queue, replies]);
-                var queue = _queue.slice();
+                const queue = _queue.slice();
                 _queue = [];
                 return queue;
             },
-            _setClientTimeout: function(timeout) {
+            _setClientTimeout: timeout => {
                 _clientTimeout = timeout;
             },
-            _calculateTimeout: function(dftTimeout) {
+            _calculateTimeout: dftTimeout => {
                 if (_clientTimeout >= 0) {
                     return _clientTimeout;
                 }
                 return dftTimeout;
             },
-            _setClientInterval: function(interval) {
+            _setClientInterval: interval => {
                 _clientInterval = interval;
             },
-            _calculateInterval: function(dftInterval) {
+            _calculateInterval: dftInterval => {
                 if (_clientInterval >= 0) {
                     return _clientInterval;
                 }
                 return dftInterval;
             },
-            _subscribed: function(channel) {
+            _subscribed: channel => {
                 _subscriptions.push(channel);
             },
-            _unsubscribed: function(channel) {
-                for (var i = 0; i < _subscriptions.length; ++i) {
-                    var s = _subscriptions[i];
+            _unsubscribed: channel => {
+                for (let i = 0; i < _subscriptions.length; ++i) {
+                    const s = _subscriptions[i];
                     if (s.name === channel.name) {
                         _subscriptions.splice(i, 1);
                         break;
@@ -1088,10 +1085,10 @@ module.exports = function() {
             },
             _removed: function(timeout) {
                 _handshaken = false;
-                var self = this;
-                _asyncFoldLeft(_subscriptions, undefined, function(y, s, c) {
+                const self = this;
+                _asyncFoldLeft(_subscriptions, undefined, (y, s, c) => {
                     s._unsubscribe(self, null, c);
-                }, function() {
+                }, () => {
                     _notifyEvent(_listeners['removed'], [self, timeout]);
                 });
             },
@@ -1110,7 +1107,7 @@ module.exports = function() {
                     }
                 }
             },
-            _startBatch: function() {
+            _startBatch: () => {
                 ++_batch;
             },
             _endBatch: function() {
@@ -1123,12 +1120,12 @@ module.exports = function() {
                 return _batch > 0;
             },
             _extendIncoming: function(message, callback) {
-                var session = this;
-                _asyncFoldLeft(_extensions, true, function(result, extension, loop) {
+                const session = this;
+                _asyncFoldLeft(_extensions, true, (result, extension, loop) => {
                     if (result) {
                         if (extension.incoming) {
                             try {
-                                extension.incoming(session, message, function(failure, ret) {
+                                extension.incoming(session, message, (failure, ret) => {
                                     if (failure) {
                                         loop(failure);
                                     } else if (ret === false) {
@@ -1150,11 +1147,11 @@ module.exports = function() {
                 }, callback);
             },
             _extendOutgoing(sender, session, message, callback) {
-                _asyncFoldLeft(_extensions.slice().reverse(), message, function(result, extension, loop) {
+                _asyncFoldLeft(_extensions.slice().reverse(), message, (result, extension, loop) => {
                     if (result) {
                         if (extension.outgoing) {
                             try {
-                                extension.outgoing(sender, session, result, function(failure, msg) {
+                                extension.outgoing(sender, session, result, (failure, msg) => {
                                     if (failure) {
                                         loop(failure);
                                     } else if (msg === undefined) {
@@ -1196,19 +1193,19 @@ module.exports = function() {
      * @returns {CometDServer} a new CometD server
      * @constructor
      */
-    var CometDServer = function(options) {
-        var _self;
-        var _options = _mixin({
+     function CometDServer(options) {
+        let _self;
+        const _options = _mixin({
             logLevel: 'info',
             sweepPeriod: 997
         }, options);
-        var _httpTransport;
-        var _extensions = [];
-        var _channels = {};
-        var _sessions = {};
-        var _listeners = {};
-        var _context = {};
-        var _sweeper;
+        let _httpTransport;
+        const _extensions = [];
+        const _channels = {};
+        const _sessions = {};
+        const _listeners = {};
+        const _context = {};
+        let _sweeper;
 
         function _error(reply, error) {
             reply.successful = false;
@@ -1218,7 +1215,7 @@ module.exports = function() {
         function _unknown(reply) {
             _error(reply, '402::session_unknown');
             if (reply.channel === '/meta/handshake' || reply.channel === '/meta/connect') {
-                var advice = reply.advice;
+                let advice = reply.advice;
                 if (!advice) {
                     advice = reply.advice = {};
                 }
@@ -1228,7 +1225,7 @@ module.exports = function() {
         }
 
         function _canHandshake(session, message, callback) {
-            var p = _self.policy;
+            const p = _self.policy;
             if (p && p.canHandshake) {
                 p.canHandshake(session, message, callback);
             } else {
@@ -1237,7 +1234,7 @@ module.exports = function() {
         }
 
         function _canCreate(session, message, channelName, callback) {
-            var p = _self.policy;
+            const p = _self.policy;
             if (p && p.canCreate) {
                 p.canCreate(session, message, channelName, callback);
             } else {
@@ -1246,7 +1243,7 @@ module.exports = function() {
         }
 
         function _canSubscribe(session, message, channel, callback) {
-            var p = _self.policy;
+            const p = _self.policy;
             if (p && p.canSubscribe) {
                 p.canSubscribe(session, message, channel, callback);
             } else {
@@ -1255,7 +1252,7 @@ module.exports = function() {
         }
 
         function _canPublish(channel, session, message, callback) {
-            var p = _self.policy;
+            const p = _self.policy;
             if (p && p.canPublish) {
                 p.canPublish(session, message, channel, callback);
             } else {
@@ -1274,11 +1271,11 @@ module.exports = function() {
         }
 
         function _metaHandshake(session, message, callback) {
-            _canHandshake(session, message, function(failure, result) {
+            _canHandshake(session, message, (failure, result) => {
                 if (failure) {
                     callback(failure);
                 } else {
-                    var reply = message.reply;
+                    const reply = message.reply;
                     if (result) {
                         session._handshake();
                         _addServerSession(session, message);
@@ -1288,7 +1285,7 @@ module.exports = function() {
                         reply.supportedConnectionTypes = ['long-polling'];
                     } else {
                         _error(reply, '403::handshake_denied');
-                        var advice = reply.advice;
+                        let advice = reply.advice;
                         if (!advice) {
                             advice = reply.advice = {};
                         }
@@ -1302,11 +1299,11 @@ module.exports = function() {
         }
 
         function _metaConnect(session, message, callback) {
-            var adviceIn = message.advice;
+            const adviceIn = message.advice;
             if (adviceIn) {
-                var timeout = adviceIn.timeout;
+                const timeout = adviceIn.timeout;
                 session._setClientTimeout(timeout === undefined ? -1 : timeout);
-                var interval = adviceIn.interval;
+                const interval = adviceIn.interval;
                 session._setClientInterval(interval === undefined ? -1 : interval);
             } else {
                 session._setClientTimeout(-1);
@@ -1317,18 +1314,18 @@ module.exports = function() {
         }
 
         function _metaSubscribe(session, message, callback) {
-            var reply = message.reply;
-            var subscriptions = message.subscription;
+            const reply = message.reply;
+            let subscriptions = message.subscription;
             reply.subscription = subscriptions;
             if (subscriptions) {
                 if (!Array.isArray(subscriptions)) {
                     subscriptions = [subscriptions];
                 }
-                _asyncFoldLeft(subscriptions, true, function(processSubscription, subscription, c) {
+                _asyncFoldLeft(subscriptions, true, (processSubscription, subscription, c) => {
                     if (processSubscription) {
-                        var channel = _self.getServerChannel(subscription);
+                        let channel = _self.getServerChannel(subscription);
                         if (!channel) {
-                            _canCreate(session, message, subscription, function(failure, result) {
+                            _canCreate(session, message, subscription, (failure, result) => {
                                 if (failure) {
                                     c(failure);
                                 } else if (result) {
@@ -1344,18 +1341,18 @@ module.exports = function() {
                     } else {
                         c(null, false);
                     }
-                }, function(failure, result) {
+                }, (failure, result) => {
                     if (failure) {
                         callback(failure);
                     } else if (result) {
-                        _asyncFoldLeft(subscriptions, true, function(processSubscription, subscription, c) {
+                        _asyncFoldLeft(subscriptions, true, (processSubscription, subscription, c) => {
                             if (processSubscription) {
-                                var channel = _self.getServerChannel(subscription);
+                                const channel = _self.getServerChannel(subscription);
                                 channel._subscribe(session, message, c);
                             } else {
                                 c(null, false);
                             }
-                        }, function(failure2, result2) {
+                        }, (failure2, result2) => {
                             if (failure2) {
                                 callback(failure2);
                             } else {
@@ -1379,16 +1376,16 @@ module.exports = function() {
         }
 
         function _metaUnsubscribe(session, message, callback) {
-            var reply = message.reply;
-            var subscriptions = message.subscription;
+            const reply = message.reply;
+            let subscriptions = message.subscription;
             reply.subscription = subscriptions;
             if (subscriptions) {
                 if (!Array.isArray(subscriptions)) {
                     subscriptions = [subscriptions];
                 }
-                _asyncFoldLeft(subscriptions, true, function(processSubscription, subscription, c) {
+                _asyncFoldLeft(subscriptions, true, (processSubscription, subscription, c) => {
                     if (processSubscription) {
-                        var channel = _self.getServerChannel(subscription);
+                        const channel = _self.getServerChannel(subscription);
                         if (channel) {
                             channel._unsubscribe(session, message, c);
                         } else {
@@ -1397,7 +1394,7 @@ module.exports = function() {
                     } else {
                         c(null, false);
                     }
-                }, function(failure, result) {
+                }, (failure, result) => {
                     if (failure) {
                         callback(failure);
                     } else {
@@ -1416,7 +1413,7 @@ module.exports = function() {
         }
 
         function _metaDisconnect(session, message, callback) {
-            var reply = message.reply;
+            const reply = message.reply;
             reply.successful = true;
             _self._removeServerSession(session, false);
             session._flush();
@@ -1424,21 +1421,21 @@ module.exports = function() {
         }
 
         function _notifyListeners(channel, session, message, callback) {
-            var channels = [];
-            channel.wildNames.forEach(function(wildName) {
-                var wild = _self.getServerChannel(wildName);
+            const channels = [];
+            channel.wildNames.forEach(wildName => {
+                const wild = _self.getServerChannel(wildName);
                 if (wild) {
                     channels.push(wild);
                 }
             });
             channels.push(channel);
-            _asyncFoldLeft(channels, true, function(processChannel, ch, chLoop) {
+            _asyncFoldLeft(channels, true, (processChannel, ch, chLoop) => {
                 if (processChannel) {
-                    var listeners = ch.listeners('message');
+                    const listeners = ch.listeners('message');
                     _self._log('cometd.server', 'notifying', listeners.length, 'listeners on', channel.name);
-                    _asyncFoldLeft(listeners, true, function(processListener, listener, lsLoop) {
+                    _asyncFoldLeft(listeners, true, (processListener, listener, lsLoop) => {
                         if (processListener) {
-                            listener(session, ch, message, function(failure, result) {
+                            listener(session, ch, message, (failure, result) => {
                                 if (failure) {
                                     lsLoop(failure);
                                 } else {
@@ -1459,9 +1456,9 @@ module.exports = function() {
         }
 
         function _notifySubscribers(channel, session, message) {
-            var channels = [];
-            channel.wildNames.forEach(function(wildName) {
-                var wild = _self.getServerChannel(wildName);
+            const channels = [];
+            channel.wildNames.forEach(wildName => {
+                const wild = _self.getServerChannel(wildName);
                 if (wild) {
                     channels.push(wild);
                 }
@@ -1471,10 +1468,10 @@ module.exports = function() {
             // Avoid generating the JSON string for each subscriber.
             message = _serialize(message);
 
-            channels.forEach(function(channel) {
-                var subscribers = channel.subscribers;
+            channels.forEach(channel => {
+                const subscribers = channel.subscribers;
                 _self._log('cometd.server', 'notifying', subscribers.length, 'subscribers on', channel.name);
-                subscribers.forEach(function(subscriber) {
+                subscribers.forEach(subscriber => {
                     subscriber._deliver1(session, message);
                 });
             });
@@ -1482,7 +1479,7 @@ module.exports = function() {
 
         function _publish1(channel, session, message, incoming, callback) {
             if (channel.broadcast) {
-                _self._extendOutgoing(session, null, message, function(failure, result) {
+                _self._extendOutgoing(session, null, message, (failure, result) => {
                     if (failure) {
                         callback(failure);
                     } else if (result) {
@@ -1532,11 +1529,11 @@ module.exports = function() {
         }
 
         function _process1(session, message, callback) {
-            var channelName = message.channel;
+            const channelName = message.channel;
             session._cancelExpiration(channelName === '/meta/connect');
-            var channel = _channels[channelName];
+            let channel = _channels[channelName];
             if (!channel) {
-                _canCreate(session, message, channelName, function(failure, result) {
+                _canCreate(session, message, channelName, (failure, result) => {
                     if (failure) {
                         callback(failure);
                     } else if (result) {
@@ -1553,11 +1550,11 @@ module.exports = function() {
         }
 
         function _process2(channel, session, message, callback) {
-            var reply = message.reply;
+            const reply = message.reply;
             if (channel.meta) {
                 _self._publish(channel, session, message, true, callback);
             } else {
-                _canPublish(channel, session, message, function(failure, result) {
+                _canPublish(channel, session, message, (failure, result) => {
                     if (failure) {
                         callback(failure);
                     } else if (result) {
@@ -1572,12 +1569,12 @@ module.exports = function() {
         }
 
         function _sweep() {
-            for (var name in _channels) {
+            for (let name in _channels) {
                 if (_channels.hasOwnProperty(name)) {
                     _channels[name]._sweep();
                 }
             }
-            for (var id in _sessions) {
+            for (let id in _sessions) {
                 if (_sessions.hasOwnProperty(id)) {
                     _sessions[id]._sweep();
                 }
@@ -1613,7 +1610,7 @@ module.exports = function() {
              * @param {string} event the event type
              * @param {function} fn the listener function
              */
-            addListener: function(event, fn) {
+            addListener: (event, fn) => {
                 _addListener(_listeners, event, fn);
             },
             /**
@@ -1622,23 +1619,21 @@ module.exports = function() {
              * @param {string} event the event type
              * @param {function} fn the listener function
              */
-            removeListener: function(event, fn) {
+            removeListener: (event, fn) => {
                 _removeListener(_listeners, event, fn);
             },
             /**
              * @param {string} event the event type
              * @returns {Array} the listeners for the given event
              */
-            listeners: function(event) {
-                return _listeners[event] || [];
-            },
+            listeners: event => _listeners[event] || [],
             /**
              * Adds the given extension to the list of extensions.
              * TODO: document extension method signature
              *
              * @param extension the extension to add
              */
-            addExtension: function(extension) {
+            addExtension: extension => {
                 _extensions.push(extension);
             },
             /**
@@ -1647,7 +1642,7 @@ module.exports = function() {
              * @param extension the extension to remove
              * @return whether the extension was removed
              */
-            removeExtension: function(extension) {
+            removeExtension: extension => {
                 let index = _extensions.indexOf(extension);
                 if (index >= 0) {
                     _extensions.splice(index, 1);
@@ -1674,7 +1669,7 @@ module.exports = function() {
              * @param request the HTTP request
              * @param response the HTTP response
              */
-            handle: function(request, response) {
+            handle: (request, response) => {
                 _httpTransport.handle(request, response);
             },
             /**
@@ -1683,9 +1678,7 @@ module.exports = function() {
              * or nothing if there is no channel with the given name
              * @see #createServerChannel
              */
-            getServerChannel: function(name) {
-                return _channels[name];
-            },
+            getServerChannel: name => _channels[name],
             /**
              * Returns a ServerChannel with the given name.
              * If the channel already exists, returns it;
@@ -1695,8 +1688,8 @@ module.exports = function() {
              * @returns {ServerChannel} a ServerChannel with the given name
              * @see #getServerChannel
              */
-            createServerChannel: function(name) {
-                var channel = _self.getServerChannel(name);
+            createServerChannel: name => {
+                let channel = _self.getServerChannel(name);
                 if (!channel) {
                     channel = new ServerChannel(_self, name);
                     _addServerChannel(channel);
@@ -1708,9 +1701,7 @@ module.exports = function() {
              * @returns {ServerSession} a ServerSession with the given session id,
              * or nothing if there is no session with the given id
              */
-            getServerSession: function(id) {
-                return _sessions[id];
-            },
+            getServerSession: id => _sessions[id],
             /**
              * Returns a map of contextual information related to the message processing.
              *
@@ -1722,17 +1713,17 @@ module.exports = function() {
             /**
              * Closes this CometD server, stopping its activities.
              */
-            close: function() {
+            close: () => {
                 clearTimeout(_sweeper);
             },
 
             // PRIVATE APIs.
 
-            _setContext: function(context) {
+            _setContext: context => {
                 if (context) {
                     _mixin(_context, context);
                 } else {
-                    for (var k in _context) {
+                    for (let k in _context) {
                         if (Object.prototype.hasOwnProperty.call(_context, k)) {
                             delete _context[k];
                         }
@@ -1740,7 +1731,7 @@ module.exports = function() {
                 }
             },
             _process: function(session, message, callback) {
-                var reply = {
+                const reply = {
                     id: message.id,
                     channel: message.channel
                 };
@@ -1759,12 +1750,12 @@ module.exports = function() {
                         _error(reply, '400::channel_missing');
                         callback();
                     } else {
-                        this._extendIncoming(session, message, function(failure, result) {
+                        this._extendIncoming(session, message, (failure, result) => {
                             if (failure) {
                                 callback(failure);
                             } else if (result) {
                                 if (session) {
-                                    session._extendIncoming(message, function(failure, result) {
+                                    session._extendIncoming(message, (failure, result) => {
                                         if (failure) {
                                             callback(failure);
                                         } else if (result) {
@@ -1785,14 +1776,14 @@ module.exports = function() {
                     }
                 }
             },
-            _publish: function(channel, session, message, incoming, callback) {
+            _publish: (channel, session, message, incoming, callback) => {
                 _self._log('cometd.server', 'publishing to', channel.name, message);
-                var broadcast = channel.broadcast;
+                const broadcast = channel.broadcast;
                 if (broadcast) {
                     delete message.id;
                     delete message.clientId;
                 }
-                _notifyListeners(channel, session, message, function(failure, result) {
+                _notifyListeners(channel, session, message, (failure, result) => {
                     if (failure) {
                         callback(failure);
                     } else if (result) {
@@ -1803,12 +1794,12 @@ module.exports = function() {
                     }
                 });
             },
-            _extendIncoming: function(session, message, callback) {
-                _asyncFoldLeft(_extensions, true, function(result, extension, loop) {
+            _extendIncoming: (session, message, callback) => {
+                _asyncFoldLeft(_extensions, true, (result, extension, loop) => {
                     if (result) {
                         if (extension.incoming) {
                             try {
-                                extension.incoming(_self, session, message, function(failure, ret) {
+                                extension.incoming(_self, session, message, (failure, ret) => {
                                     if (failure) {
                                         loop(failure);
                                     } else if (ret === false) {
@@ -1829,12 +1820,12 @@ module.exports = function() {
                     }
                 }, callback);
             },
-            _extendOutgoing: function(sender, session, message, callback) {
-                _asyncFoldLeft(_extensions.slice().reverse(), true, function(result, extension, loop) {
+            _extendOutgoing: (sender, session, message, callback) => {
+                _asyncFoldLeft(_extensions.slice().reverse(), true, (result, extension, loop) => {
                     if (result) {
                         if (extension.outgoing) {
                             try {
-                                extension.outgoing(_self, session, session, message, function(failure, ret) {
+                                extension.outgoing(_self, session, session, message, (failure, ret) => {
                                     if (failure) {
                                         loop(failure);
                                     } else if (ret === false) {
@@ -1856,7 +1847,7 @@ module.exports = function() {
                 }, callback);
             },
             _extendReply: function(session, reply, callback) {
-                this._extendOutgoing(session, session, reply, function(failure, result) {
+                this._extendOutgoing(session, session, reply, (failure, result) => {
                     if (failure) {
                         callback(failure);
                     } else if (result) {
@@ -1870,12 +1861,12 @@ module.exports = function() {
                     }
                 });
             },
-            _newServerSession: function() {
-                var id = crypto.randomBytes(20).toString('hex');
+            _newServerSession: () => {
+                const id = crypto.randomBytes(20).toString('hex');
                 return new ServerSession(_self, id);
             },
-            _removeServerSession: function(session, timeout) {
-                var existing = _sessions[session.id];
+            _removeServerSession: (session, timeout) => {
+                const existing = _sessions[session.id];
                 if (existing) {
                     delete _sessions[session.id];
                     _notifyEvent(_self.listeners('sessionRemoved'), [session, timeout]);
@@ -1883,8 +1874,8 @@ module.exports = function() {
                 }
                 return existing;
             },
-            _removeServerChannel: function(channel) {
-                var existing = _channels[channel.name];
+            _removeServerChannel: channel => {
+                const existing = _channels[channel.name];
                 if (existing) {
                     delete _channels[channel.name];
                     _notifyEvent(_self.listeners('channelRemoved'), [channel]);
@@ -1911,15 +1902,13 @@ module.exports = function() {
         _sweep();
 
         return _self;
-    };
+    }
 
     return {
         /**
          * @param {object} options the configuration options
          * @returns {CometDServer} a new CometDServer with the given configuration options
          */
-        createCometDServer: function(options) {
-            return new CometDServer(options);
-        }
+        createCometDServer: options => new CometDServer(options)
     };
-}();
+})();

@@ -1,21 +1,23 @@
-var http = require('http');
-var assert = require('assert');
-var Latch  = require('./latch.js');
-var cometd = require('..');
+'use strict';
+
+const http = require('http');
+const assert = require('assert');
+const Latch = require('./latch.js');
+const cometd = require('..');
 require('cometd-nodejs-client').adapt();
-var clientLib = require('cometd');
+const clientLib = require('cometd');
 
-describe('integration', function() {
-    var _cometd;
-    var _server;
-    var _client;
-    var _uri;
+describe('integration', () => {
+    let _cometd;
+    let _server;
+    let _client;
+    let _uri;
 
-    beforeEach(function(done) {
+    beforeEach(done => {
         _cometd = cometd.createCometDServer();
         _server = http.createServer(_cometd.handle);
-        _server.listen(0, 'localhost', function() {
-            var port = _server.address().port;
+        _server.listen(0, 'localhost', () => {
+            const port = _server.address().port;
             console.log('listening on localhost:' + port);
             _uri = 'http://localhost:' + port + '/cometd';
             _client = new clientLib.CometD();
@@ -26,33 +28,31 @@ describe('integration', function() {
         });
     });
 
-    afterEach(function() {
+    afterEach(() => {
         _server.close();
         _cometd.close();
     });
 
     it('sweeps channels', function(done) {
-        var period = 500;
+        const period = 500;
         _cometd.options.sweepPeriod = period;
         this.timeout(5 * period);
 
-        var channelName = '/jaz';
+        const channelName = '/jaz';
 
-        _cometd.addListener('channelRemoved', function(channel) {
+        _cometd.addListener('channelRemoved', channel => {
             assert.strictEqual(channel.name, channelName);
             done();
         });
 
-        _client.handshake(function(hs) {
+        _client.handshake(hs => {
             if (hs.successful) {
-                var channel = _cometd.createServerChannel(channelName);
-                var listener = function() {
-                    return undefined;
-                };
+                let channel = _cometd.createServerChannel(channelName);
+                const listener = () => undefined;
                 // Add a listener to make the channel non sweepable.
                 channel.addListener('message', listener);
                 // Wait for a few sweeps.
-                setTimeout(function() {
+                setTimeout(() => {
                     channel = _cometd.getServerChannel(channelName);
                     assert.ok(channel);
                     // Remove the listener to make the channel sweepable.
@@ -62,22 +62,22 @@ describe('integration', function() {
         });
     });
 
-    it('handles multiple sessions', function(done) {
-        var client1 = new clientLib.CometD();
+    it('handles multiple sessions', done => {
+        const client1 = new clientLib.CometD();
         client1.configure({
             url: _uri
         });
 
-        var client2 = new clientLib.CometD();
+        const client2 = new clientLib.CometD();
         client2.configure({
             url: _uri
         });
 
-        client2.addListener('/meta/connect', function(message) {
-            var advice = message.advice;
+        client2.addListener('/meta/connect', message => {
+            const advice = message.advice;
             if (advice && advice['multiple-clients']) {
-                client1.disconnect(function() {
-                    client2.disconnect(function() {
+                client1.disconnect(() => {
+                    client2.disconnect(() => {
                         done();
                     });
                 });
@@ -86,36 +86,36 @@ describe('integration', function() {
 
         // The second client must handshake after the first client to avoid
         // that the server generates two different BAYEUX_BROWSER cookies.
-        client1.handshake(function(hs1) {
+        client1.handshake(hs1 => {
             if (hs1.successful) {
-                var session = _cometd.getServerSession(hs1.clientId);
-                session.addListener('suspended', function() {
+                const session = _cometd.getServerSession(hs1.clientId);
+                session.addListener('suspended', () => {
                     client2.handshake();
                 });
             }
         });
     });
 
-    it('handles server-side disconnects', function(done) {
-        var client = new clientLib.CometD();
+    it('handles server-side disconnects', done => {
+        const client = new clientLib.CometD();
         client.configure({
             url: _uri
         });
 
-        var latch = new Latch(2, done);
-        client.handshake(function(hs) {
+        const latch = new Latch(2, done);
+        client.handshake(hs => {
             if (hs.successful) {
-                client.addListener('/meta/disconnect', function() {
+                client.addListener('/meta/disconnect', () => {
                     latch.signal();
                 });
 
-                var session = _cometd.getServerSession(client.getClientId());
-                session.addListener('suspended', function() {
-                    client.addListener('/meta/connect', function() {
+                const session = _cometd.getServerSession(client.getClientId());
+                session.addListener('suspended', () => {
+                    client.addListener('/meta/connect', () => {
                         latch.signal();
                     });
 
-                    setTimeout(function() {
+                    setTimeout(() => {
                         session.disconnect();
                     }, 0);
                 });
