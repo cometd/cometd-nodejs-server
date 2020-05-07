@@ -34,7 +34,7 @@ describe('extensions', function() {
     it('calls extension.incoming', function(done) {
         let latch = new Latch(3, done);
         _server.addExtension({
-            incoming: function(session, message, callback) {
+            incoming: function(cometd, session, message, callback) {
                 latch.signal();
                 session.addExtension({
                     incoming: function(session, message, callback) {
@@ -56,7 +56,7 @@ describe('extensions', function() {
 
     it('deletes message from server extension', function(done) {
         _server.addExtension({
-            incoming: function(session, message, callback) {
+            incoming: function(cometd, session, message, callback) {
                 if (message.channel === '/meta/handshake') {
                     let advice = message.reply.advice || {};
                     message.reply.advice = advice;
@@ -78,7 +78,7 @@ describe('extensions', function() {
 
     it('deletes message from session extension', function(done) {
         _server.addExtension({
-            incoming: function(session, message, callback) {
+            incoming: function(cometd, session, message, callback) {
                 session.addExtension({
                     incoming: function(session, message, callback) {
                         if (message.channel === '/meta/handshake') {
@@ -106,7 +106,7 @@ describe('extensions', function() {
     it('calls extension.outgoing in reverse order', function(done) {
         let counter = 0;
         _server.addExtension({
-            incoming: function(session, message, callback) {
+            incoming: function(cometd, session, message, callback) {
                 if (counter === 0) {
                     counter = 1;
                     session.addExtension({
@@ -132,7 +132,7 @@ describe('extensions', function() {
                     callback(new Error('' + counter));
                 }
             },
-            outgoing: function(sender, session, message, callback) {
+            outgoing: function(cometd, sender, session, message, callback) {
                 if (counter === 5) {
                     counter = 6;
                     callback(null, true);
@@ -142,7 +142,7 @@ describe('extensions', function() {
             }
         });
         _server.addExtension({
-            incoming: function(session, message, callback) {
+            incoming: function(cometd, session, message, callback) {
                 if (counter === 1) {
                     counter = 2;
                     session.addExtension({
@@ -168,7 +168,7 @@ describe('extensions', function() {
                     callback(new Error('' + counter));
                 }
             },
-            outgoing: function(sender, session, message, callback) {
+            outgoing: function(cometd, sender, session, message, callback) {
                 if (counter === 4) {
                     counter = 5;
                     callback(null, true);

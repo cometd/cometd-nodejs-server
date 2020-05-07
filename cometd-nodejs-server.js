@@ -105,7 +105,7 @@ module.exports = function() {
     }
 
     function _serialize(message) {
-        if (message._json) {
+        if (!message || message._json) {
             return message;
         } else {
             // Non enumerable property '_json' caches the JSON representation.
@@ -168,6 +168,7 @@ module.exports = function() {
         var _prefix = 'long-polling.json';
         var _sessions = {};
         var _browserMetaConnects = {};
+        var _requests = 0;
 
         function _parseCookies(text) {
             var cookies = {};
@@ -211,7 +212,8 @@ module.exports = function() {
             return null;
         }
 
-        function _respond(response, local, session, callback) {
+        function _respond(context, local, session, callback) {
+            var response = context.response;
             response.statusCode = 200;
             response.setHeader('Content-Type', 'application/json');
 
@@ -219,7 +221,7 @@ module.exports = function() {
             // Serialize the queue.
             var queue = [];
             if (session && local.sendQueue) {
-                queue = session._drainQueue();
+                queue = session._drainQueue(local.replies);
                 cometd._log(_prefix, 'sending', queue.length, 'queued messages for', session.id);
                 queue.forEach(function(m, i) {
                     if (i > 0) {
@@ -242,12 +244,16 @@ module.exports = function() {
                 } else if (i > 0) {
                     content += ',';
                 }
-                content += JSON.stringify(reply);
+                var json = reply._json;
+                if (!json) {
+                    json = JSON.stringify(reply);
+                }
+                content += json;
             });
             content += ']';
 
             var finish = function(failure) {
-                cometd._log(_prefix, 'response finish for session', session ? session.id : 'null');
+                cometd._log(_prefix, 'request', '#' + context.id, 'finish for session', session ? session.id : 'null');
                 if (session && local.scheduleExpiration) {
                     session._scheduleExpiration(_self.option('interval'), _self.option('maxInterval'));
                 }
@@ -455,16 +461,25 @@ module.exports = function() {
         }
 
         function _processMessages(request, response, messages, callback) {
-            cometd._log(_prefix, 'processing', messages.length, 'messages');
+            // An internal context used by the implementation to avoid
+            // modifying/altering that given to applications via cometd.context.
+            var context = {
+                id: ++_requests,
+                request: request,
+                response: response,
+            };
+
+            cometd._log(_prefix, 'processing request', '#' + context.id, 'messages:', messages.length);
 
             if (messages.length === 0) {
+                cometd._log(_prefix, 'invalid request', '#' + context.id, 'no messages');
                 response.statusCode = 400;
                 response.end();
                 callback();
                 return;
             }
 
-            var cookies = _parseCookies(request.headers.cookie);
+            var cookies = context.cookies = _parseCookies(request.headers.cookie);
             var sessions = _findSessions(cookies);
             var message = messages[0];
             var session = _findSession(sessions, message);
@@ -473,14 +488,6 @@ module.exports = function() {
             if (batch) {
                 session._startBatch();
             }
-
-            // An internal context used by the implementation to avoid
-            // modifying/altering that given to applications via cometd.context.
-            var context = {
-                request: request,
-                response: response,
-                cookies: cookies
-            };
 
             var local = {
                 sendQueue: false,
@@ -503,7 +510,8 @@ module.exports = function() {
                                         if (failure) {
                                             loop(failure);
                                         } else {
-                                            cometd._log(_prefix, 'reply, modified:', message.reply !== reply, '' + reply);
+                                            reply = _serialize(reply);
+                                            cometd._log(_prefix, 'reply', reply);
                                             if (reply) {
                                                 local.replies.push(reply);
                                             }
@@ -527,7 +535,8 @@ module.exports = function() {
                                     if (failure) {
                                         loop(failure);
                                     } else {
-                                        cometd._log(_prefix, 'reply, modified:', message.reply !== reply, '' + reply);
+                                        reply = _serialize(reply);
+                                        cometd._log(_prefix, 'reply', reply);
                                         if (reply) {
                                             local.replies.push(reply);
                                         }
@@ -549,11 +558,12 @@ module.exports = function() {
                                     if (failure) {
                                         loop(failure);
                                     } else {
-                                        cometd._log(_prefix, 'reply, modified:', message.reply !== reply, '' + reply);
+                                        reply = _serialize(reply);
+                                        cometd._log(_prefix, 'reply', reply);
                                         if (reply) {
                                             local.replies.push(reply);
                                         }
-                                        local.sendQueue = true;
+                                        local.sendQueue = !(session && session._metaConnectDeliveryOnly);
                                         // Leave scheduleExpiration unchanged.
                                         loop();
                                     }
@@ -568,11 +578,11 @@ module.exports = function() {
                     if (response.statusCode < 400) {
                         response.statusCode = 500;
                     }
-                    cometd._log(_prefix, 'response failure', response.statusCode, 'for session', session ? session.id : 'null', failure);
+                    cometd._log(_prefix, 'request', '#' + context.id, 'failure', response.statusCode, 'for session', session ? session.id : 'null', failure);
                     response.end();
                     callback(failure);
                 } else {
-                    _respond(response, local, session, callback);
+                    _respond(context, local, session, callback);
                 }
                 if (batch) {
                     session._endBatch();
@@ -853,14 +863,15 @@ module.exports = function() {
         var _batch = 0;
         var _scheduleTime = 0;
         var _expireTime = 0;
+        var _metaConnectDeliveryOnly = false;
 
         function _noop() {
         }
 
-        function _offer(message) {
+        function _offer(session, message) {
             // TODO: queue maxed ?
             _queue.push(message);
-            // TODO: queue listeners ?
+            _notifyEvent(session.listeners('queueOffer'), [session, message]);
         }
 
         return {
@@ -980,6 +991,12 @@ module.exports = function() {
 
             // PRIVATE APIs.
 
+            get _metaConnectDeliveryOnly() {
+                return _metaConnectDeliveryOnly;
+            },
+            set _metaConnectDeliveryOnly(value) {
+                _metaConnectDeliveryOnly = value;
+            },
             _deliver: function(sender, message, callback) {
                 var session = this;
                 callback = callback || _noop;
@@ -1001,7 +1018,7 @@ module.exports = function() {
                     if (failure) {
                         callback(failure);
                     } else if (result) {
-                        _offer(_serialize(result));
+                        _offer(session, _serialize(result));
                         if (_batch === 0) {
                             session._flush();
                         }
@@ -1033,7 +1050,8 @@ module.exports = function() {
                     _expireTime += Date.now() - _scheduleTime;
                 }
             },
-            _drainQueue: function() {
+            _drainQueue: function(replies) {
+                _notifyEvent(this.listeners('queueDrain'), [this, _queue, replies]);
                 var queue = _queue.slice();
                 _queue = [];
                 return queue;
@@ -1110,7 +1128,15 @@ module.exports = function() {
                     if (result) {
                         if (extension.incoming) {
                             try {
-                                extension.incoming(session, message, loop);
+                                extension.incoming(session, message, function(failure, ret) {
+                                    if (failure) {
+                                        loop(failure);
+                                    } else if (ret === false) {
+                                        loop(null, false);
+                                    } else {
+                                        loop(null, true);
+                                    }
+                                });
                             } catch (failure) {
                                 cometd._log('cometd.session', 'extension failure', failure, failure.stack);
                                 loop(null, true);
@@ -1128,7 +1154,15 @@ module.exports = function() {
                     if (result) {
                         if (extension.outgoing) {
                             try {
-                                extension.outgoing(sender, session, result, loop);
+                                extension.outgoing(sender, session, result, function(failure, msg) {
+                                    if (failure) {
+                                        loop(failure);
+                                    } else if (msg === undefined) {
+                                        loop(null, result);
+                                    } else {
+                                        loop(null, msg);
+                                    }
+                                });
                             } catch (failure) {
                                 cometd._log('cometd.session', 'extension failure', failure, failure.stack);
                                 loop(null, result);
@@ -1398,28 +1432,28 @@ module.exports = function() {
                 }
             });
             channels.push(channel);
-            _asyncFoldLeft(channels, true, function(processChannel, ch, c) {
+            _asyncFoldLeft(channels, true, function(processChannel, ch, chLoop) {
                 if (processChannel) {
                     var listeners = ch.listeners('message');
                     _self._log('cometd.server', 'notifying', listeners.length, 'listeners on', channel.name);
-                    _asyncFoldLeft(listeners, true, function(processListener, listener, cc) {
+                    _asyncFoldLeft(listeners, true, function(processListener, listener, lsLoop) {
                         if (processListener) {
                             listener(session, ch, message, function(failure, result) {
                                 if (failure) {
-                                    cc(failure);
+                                    lsLoop(failure);
                                 } else {
                                     if (result === undefined) {
                                         result = true;
                                     }
-                                    cc(null, result);
+                                    lsLoop(null, result);
                                 }
                             });
                         } else {
-                            cc(null, false);
+                            lsLoop(null, false);
                         }
-                    }, c);
+                    }, chLoop);
                 } else {
-                    c(null, false);
+                    chLoop(null, false);
                 }
             }, callback);
         }
@@ -1774,7 +1808,15 @@ module.exports = function() {
                     if (result) {
                         if (extension.incoming) {
                             try {
-                                extension.incoming(session, message, loop);
+                                extension.incoming(_self, session, message, function(failure, ret) {
+                                    if (failure) {
+                                        loop(failure);
+                                    } else if (ret === false) {
+                                        loop(null, false);
+                                    } else {
+                                        loop(null, true);
+                                    }
+                                });
                             } catch (failure) {
                                 _self._log('cometd.server', 'extension failure', failure, failure.stack);
                                 loop(null, true);
@@ -1792,7 +1834,15 @@ module.exports = function() {
                     if (result) {
                         if (extension.outgoing) {
                             try {
-                                extension.outgoing(session, session, message, loop);
+                                extension.outgoing(_self, session, session, message, function(failure, ret) {
+                                    if (failure) {
+                                        loop(failure);
+                                    } else if (ret === false) {
+                                        loop(null, false);
+                                    } else {
+                                        loop(null, true);
+                                    }
+                                });
                             } catch (failure) {
                                 _self._log('cometd.server', 'extension failure', failure, failure.stack);
                                 loop(null, true);
@@ -1816,7 +1866,7 @@ module.exports = function() {
                             callback(null, reply);
                         }
                     } else {
-                        callback(null);
+                        callback(null, null);
                     }
                 });
             },
@@ -1870,9 +1920,6 @@ module.exports = function() {
          */
         createCometDServer: function(options) {
             return new CometDServer(options);
-        },
-        AcknowledgmentExtension: function() {
-            return {};
         }
     };
 }();
