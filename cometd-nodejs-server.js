@@ -20,6 +20,27 @@ module.exports = (() => {
     }
 
     /**
+     * @callback boolCallbackFn
+     * @param {Error} [failure] the failure error
+     * @param {boolean} result the callback result
+     */
+    /**
+     * @callback objectCallbackFn
+     * @param {Error} [failure] the failure error
+     * @param {object} result the callback result
+     */
+    /**
+     * @callback anyCallbackFn
+     * @param {Error} [failure] the failure error
+     * @param {*} result the callback result
+     */
+    /**
+     * @callback foldFn
+     * @param {*} result the folded result
+     * @param {*} element the current element
+     * @param {anyCallbackFn} the loop function to advance or fail the loop
+     */
+    /**
      * Folds (from the left) asynchronously over the given array,
      * invoking the folding function "fn" to process each element
      * of the array.
@@ -42,10 +63,10 @@ module.exports = (() => {
      * if the "loop" function is not invoked, the iteration pauses
      * until the "loop" function is invoked.
      *
-     * @param array the array of elements to iterate over
-     * @param zero the initial result, used also when the array is empty
-     * @param fn the folding function that performs element processing and loop control
-     * @param callback the function to invoke when the iteration is complete
+     * @param {*[]} array the array of elements to iterate over
+     * @param {*} zero the initial result, used also when the array is empty
+     * @param {foldFn} fn the folding function that performs element processing and loop control
+     * @param {anyCallbackFn} callback the function to invoke when the iteration is complete
      * @private
      */
     function _asyncFoldLeft(array, zero, fn, callback) {
@@ -71,7 +92,7 @@ module.exports = (() => {
                     return;
                 }
             }
-            callback(null, result);
+            callback(undefined, result);
         }
 
         _next(0);
@@ -334,7 +355,7 @@ module.exports = (() => {
         }
 
         function _processMetaHandshake(context, session, message, callback) {
-            cometd._process(session, message, (failure, result) => {
+            cometd._process(session, message, failure => {
                 if (failure) {
                     callback(failure);
                 } else {
@@ -366,7 +387,7 @@ module.exports = (() => {
                         });
                         _advise(reply);
                     }
-                    callback(null, result);
+                    callback();
                 }
             });
         }
@@ -425,7 +446,7 @@ module.exports = (() => {
                                     },
                                     _flush: () => {
                                         _removeBrowserMetaConnect(session);
-                                        callback(null);
+                                        callback();
                                     }
                                 };
                                 scheduler._timeout = setTimeout(() => {
@@ -436,7 +457,7 @@ module.exports = (() => {
                                 _notifyEvent(session.listeners('suspended'), [session, message, timeout]);
                             } else {
                                 _removeBrowserMetaConnect(session);
-                                callback(null);
+                                callback();
                             }
                         } else {
                             let advice = reply.advice;
@@ -453,10 +474,10 @@ module.exports = (() => {
                                 reply.successful = false;
                                 advice.reconnect = 'none';
                             }
-                            callback(null);
+                            callback();
                         }
                     } else {
-                        callback(null);
+                        callback();
                     }
                 }
             });
@@ -497,7 +518,7 @@ module.exports = (() => {
                 scheduleExpiration: false
             };
 
-            _asyncFoldLeft(messages, undefined, (y, message, loop) => {
+            _asyncFoldLeft(messages, undefined, (ignored, message, loop) => {
                 cometd._log(_prefix, 'processing', message);
                 switch (message.channel) {
                     case '/meta/handshake': {
@@ -677,8 +698,8 @@ module.exports = (() => {
      *   <li><code>unsubscribed</code>, when a ServerSession has unsubscribed from this channel</li>
      * </ul>
      *
-     * @param cometd the CometD server object
-     * @param name the channel name
+     * @param {CometDServer} cometd the CometD server object
+     * @param {string} name the channel name
      * @returns {ServerChannel} a ServerChannel object
      * @constructor
      */
@@ -732,7 +753,7 @@ module.exports = (() => {
                 return !this.meta && !this.service;
             },
             /**
-             * @returns {Array.<string>} the list of parent wild channels
+             * @returns {string[]} the list of parent wild channels
              */
             get wildNames() {
                 return _wildNames;
@@ -740,9 +761,9 @@ module.exports = (() => {
             /**
              * Publishes a message to all subscribers.
              *
-             * @param sender the session that sends the message
-             * @param data the message data
-             * @param callback the callback notified when the publish completes
+             * @param {ServerSession} [sender] the session that sends the message
+             * @param {*} data the message data
+             * @param {boolCallbackFn} [callback] the callback notified when the publish completes
              */
             publish: function(sender, data, callback) {
                 callback = callback || _noop;
@@ -753,7 +774,7 @@ module.exports = (() => {
             },
             /**
              * @param event the event type
-             * @returns {Array.<function>} the listeners for the given event
+             * @returns {function[]} the listeners for the given event
              */
             listeners: event => _listeners[event] || [],
             /**
@@ -775,7 +796,7 @@ module.exports = (() => {
                 _removeListener(_listeners, event, fn);
             },
             /**
-             * @returns {Array.<ServerSession>} the list of ServerSession subscribed to this channel
+             * @returns {ServerSession[]} the list of ServerSession subscribed to this channel
              */
             get subscribers() {
                 const result = [];
@@ -791,7 +812,7 @@ module.exports = (() => {
 
             _subscribe: function(session, message, callback) {
                 if (!session._handshaken || this.meta) {
-                    callback(null, false);
+                    callback(undefined, false);
                 } else {
                     if (this.broadcast) {
                         const existing = _subscribers[session.id];
@@ -802,7 +823,7 @@ module.exports = (() => {
                             _notifyEvent(cometd.listeners('subscribed'), [this, session, message]);
                         }
                     }
-                    callback(null, true);
+                    callback(undefined, true);
                 }
             },
             _unsubscribe: function(session, message, callback) {
@@ -813,7 +834,7 @@ module.exports = (() => {
                     _notifyEvent(this.listeners('unsubscribed'), [this, session, message]);
                     _notifyEvent(cometd.listeners('unsubscribed'), [this, session, message]);
                 }
-                callback(null, true);
+                callback(undefined, true);
             },
             _sweep: function() {
                 if (this.meta) {
@@ -846,8 +867,8 @@ module.exports = (() => {
      * </ul>
      *
      *
-     * @param cometd the CometD server object
-     * @param id the session id
+     * @param {CometDServer} cometd the CometD server object
+     * @param {string} id the session id
      * @returns {ServerSession} a ServerSession object
      * @constructor
      */
@@ -880,11 +901,31 @@ module.exports = (() => {
             get id() {
                 return id;
             },
+
+            /**
+             * @callback sessionIncomingFn
+             * @param {ServerSession} session - the session receiving the message
+             * @param {object} message - the incoming message
+             * @param {boolCallbackFn} callback - the callback to complete:
+             * true to continue the processing, false to stop the processing
+             */
+            /**
+             * @callback sessionOutgoingFn
+             * @param {ServerSession} [sender] - the session that sends the message
+             * @param {ServerSession} session - the session the message is sent to
+             * @param {object} message - the outgoing message
+             * @param {objectCallbackFn} callback - the callback to complete:
+             * a message to continue the processing, null to stop the processing
+             */
+            /**
+             * @typedef {object} SessionExtension
+             * @property {sessionIncomingFn} [incoming]
+             * @property {sessionOutgoingFn} [outgoing]
+             */
             /**
              * Adds the given extension to the list of extensions.
-             * TODO: document extension method signature
              *
-             * @param extension the extension to add
+             * @param {SessionExtension} extension the extension to add
              */
             addExtension: extension => {
                 _extensions.push(extension);
@@ -892,8 +933,8 @@ module.exports = (() => {
             /**
              * Removes the given extension from the list of extensions.
              *
-             * @param extension the extension to remove
-             * @return whether the extension was removed
+             * @param {SessionExtension} extension the extension to remove
+             * @return {boolean} whether the extension was removed
              */
             removeExtension: extension => {
                 let index = _extensions.indexOf(extension);
@@ -904,14 +945,14 @@ module.exports = (() => {
                 return false;
             },
             /**
-             * @returns {*[]} the list of extensions
+             * @returns {SessionExtension[]} the list of extensions
              */
             get extensions() {
                 return _extensions.slice();
             },
             /**
-             * @param event the event type
-             * @returns {Array.<function>} the listeners for the given event
+             * @param {string} event the event type
+             * @returns {function[]} the listeners for the given event
              */
             listeners: event => _listeners[event] || [],
             /**
@@ -935,10 +976,10 @@ module.exports = (() => {
             /**
              * Delivers a message to the remote client represented by this ServerSession.
              *
-             * @param {ServerSession} sender the session that sends the message
+             * @param {ServerSession} [sender] the session that sends the message
              * @param {string} channelName the message channel
-             * @param {object} data the message data
-             * @param {function(*, boolean)=} callback the callback notified when the deliver completes
+             * @param {*} data the message data
+             * @param {boolCallbackFn} [callback] the callback notified when the deliver completes
              */
             deliver: function(sender, channelName, data, callback) {
                 const message = {
@@ -949,7 +990,7 @@ module.exports = (() => {
                 this._deliver(sender, message, callback);
             },
             /**
-             * @returns {Array.<ServerChannel>} the channels this session is subscribed to
+             * @returns {ServerChannel[]} the channels this session is subscribed to
              */
             get subscriptions() {
                 return _subscriptions.slice();
@@ -959,7 +1000,7 @@ module.exports = (() => {
              * Messages sent by the execution of the given function are
              * batched and sent only when the function returns.
              *
-             * @param fn the batching function
+             * @param {function} fn the batching function
              */
             batch: function(fn) {
                 this._startBatch();
@@ -972,7 +1013,7 @@ module.exports = (() => {
             /**
              * Disconnects this session from the server side.
              *
-             * @param callback the callback notified when the deliver completes
+             * @param {boolCallbackFn} callback the callback notified when the deliver completes
              * @returns {boolean} whether the session has been disconnected
              */
             disconnect: function(callback) {
@@ -1003,7 +1044,7 @@ module.exports = (() => {
                     } else if (result) {
                         session._deliver1(sender, message, callback);
                     } else {
-                        callback(null, false);
+                        callback(undefined, false);
                     }
                 });
             },
@@ -1019,9 +1060,9 @@ module.exports = (() => {
                         if (_batch === 0) {
                             session._flush();
                         }
-                        callback(null, true);
+                        callback(undefined, true);
                     } else {
-                        callback(null, false);
+                        callback(undefined, false);
                     }
                 });
             },
@@ -1126,23 +1167,17 @@ module.exports = (() => {
                         if (extension.incoming) {
                             try {
                                 extension.incoming(session, message, (failure, ret) => {
-                                    if (failure) {
-                                        loop(failure);
-                                    } else if (ret === false) {
-                                        loop(null, false);
-                                    } else {
-                                        loop(null, true);
-                                    }
+                                    loop(failure, ret !== false);
                                 });
                             } catch (failure) {
                                 cometd._log('cometd.session', 'extension failure', failure, failure.stack);
-                                loop(null, true);
+                                loop(undefined, true);
                             }
                         } else {
-                            loop(null, true);
+                            loop(undefined, true);
                         }
                     } else {
-                        loop(null, false);
+                        loop(undefined, false);
                     }
                 }, callback);
             },
@@ -1152,23 +1187,17 @@ module.exports = (() => {
                         if (extension.outgoing) {
                             try {
                                 extension.outgoing(sender, session, result, (failure, msg) => {
-                                    if (failure) {
-                                        loop(failure);
-                                    } else if (msg === undefined) {
-                                        loop(null, result);
-                                    } else {
-                                        loop(null, msg);
-                                    }
+                                    loop(failure, msg === undefined ? result : msg);
                                 });
                             } catch (failure) {
                                 cometd._log('cometd.session', 'extension failure', failure, failure.stack);
-                                loop(null, result);
+                                loop(undefined, result);
                             }
                         } else {
-                            loop(null, result);
+                            loop(undefined, result);
                         }
                     } else {
-                        loop(null, result);
+                        loop(undefined, result);
                     }
                 }, callback);
             }
@@ -1189,7 +1218,7 @@ module.exports = (() => {
      *   <li><code>unsubscribed</code>, when a ServerSession has unsubscribed from a ServerChannel</li>
      * </ul>
      *
-     * @param options the configuration options
+     * @param {object.<string, *>} options the configuration options
      * @returns {CometDServer} a new CometD server
      * @constructor
      */
@@ -1227,36 +1256,44 @@ module.exports = (() => {
         function _canHandshake(session, message, callback) {
             const p = _self.policy;
             if (p && p.canHandshake) {
-                p.canHandshake(session, message, callback);
+                p.canHandshake(session, message, (failure, result) => {
+                    callback(failure, result !== false);
+                });
             } else {
-                callback(null, true);
+                callback(undefined, true);
             }
         }
 
         function _canCreate(session, message, channelName, callback) {
             const p = _self.policy;
             if (p && p.canCreate) {
-                p.canCreate(session, message, channelName, callback);
+                p.canCreate(session, message, channelName, (failure, result) => {
+                    callback(failure, result !== false);
+                });
             } else {
-                callback(null, true);
+                callback(undefined, true);
             }
         }
 
         function _canSubscribe(session, message, channel, callback) {
             const p = _self.policy;
             if (p && p.canSubscribe) {
-                p.canSubscribe(session, message, channel, callback);
+                p.canSubscribe(session, message, channel, (failure, result) => {
+                    callback(failure, result !== false);
+                });
             } else {
-                callback(null, true);
+                callback(undefined, true);
             }
         }
 
         function _canPublish(channel, session, message, callback) {
             const p = _self.policy;
             if (p && p.canPublish) {
-                p.canPublish(session, message, channel, callback);
+                p.canPublish(session, message, channel, (failure, result) => {
+                    callback(failure, result !== false);
+                });
             } else {
-                callback(null, true);
+                callback(undefined, true);
             }
         }
 
@@ -1293,7 +1330,7 @@ module.exports = (() => {
                             advice.reconnect = 'none';
                         }
                     }
-                    callback(null, result);
+                    callback(undefined, result);
                 }
             });
         }
@@ -1310,7 +1347,7 @@ module.exports = (() => {
                 session._setClientInterval(-1);
             }
             message.reply.successful = true;
-            callback();
+            callback(undefined, true);
         }
 
         function _metaSubscribe(session, message, callback) {
@@ -1321,36 +1358,36 @@ module.exports = (() => {
                 if (!Array.isArray(subscriptions)) {
                     subscriptions = [subscriptions];
                 }
-                _asyncFoldLeft(subscriptions, true, (processSubscription, subscription, c) => {
-                    if (processSubscription) {
+                _asyncFoldLeft(subscriptions, true, (result, subscription, loop) => {
+                    if (result) {
                         let channel = _self.getServerChannel(subscription);
                         if (!channel) {
                             _canCreate(session, message, subscription, (failure, result) => {
                                 if (failure) {
-                                    c(failure);
+                                    loop(failure);
                                 } else if (result) {
                                     channel = _self.createServerChannel(subscription);
-                                    _canSubscribe(session, message, channel, c);
+                                    _canSubscribe(session, message, channel, loop);
                                 } else {
-                                    c(null, false);
+                                    loop(undefined, false);
                                 }
                             });
                         } else {
-                            _canSubscribe(session, message, channel, c);
+                            _canSubscribe(session, message, channel, loop);
                         }
                     } else {
-                        c(null, false);
+                        loop(undefined, false);
                     }
                 }, (failure, result) => {
                     if (failure) {
                         callback(failure);
                     } else if (result) {
-                        _asyncFoldLeft(subscriptions, true, (processSubscription, subscription, c) => {
-                            if (processSubscription) {
+                        _asyncFoldLeft(subscriptions, true, (result1, subscription, loop) => {
+                            if (result1) {
                                 const channel = _self.getServerChannel(subscription);
-                                channel._subscribe(session, message, c);
+                                channel._subscribe(session, message, loop);
                             } else {
-                                c(null, false);
+                                loop(undefined, false);
                             }
                         }, (failure2, result2) => {
                             if (failure2) {
@@ -1361,17 +1398,17 @@ module.exports = (() => {
                                 } else {
                                     _error(reply, '403::subscribe_failed');
                                 }
-                                callback();
+                                callback(undefined, true);
                             }
                         });
                     } else {
                         _error(reply, '403::subscribe_denied');
-                        callback();
+                        callback(undefined, true);
                     }
                 });
             } else {
                 _error(reply, "403::subscription_missing");
-                callback();
+                callback(undefined, true);
             }
         }
 
@@ -1383,16 +1420,16 @@ module.exports = (() => {
                 if (!Array.isArray(subscriptions)) {
                     subscriptions = [subscriptions];
                 }
-                _asyncFoldLeft(subscriptions, true, (processSubscription, subscription, c) => {
-                    if (processSubscription) {
+                _asyncFoldLeft(subscriptions, true, (result, subscription, loop) => {
+                    if (result) {
                         const channel = _self.getServerChannel(subscription);
                         if (channel) {
-                            channel._unsubscribe(session, message, c);
+                            channel._unsubscribe(session, message, loop);
                         } else {
-                            c(null, true);
+                            loop(undefined, true);
                         }
                     } else {
-                        c(null, false);
+                        loop(undefined, false);
                     }
                 }, (failure, result) => {
                     if (failure) {
@@ -1403,12 +1440,12 @@ module.exports = (() => {
                         } else {
                             _error(reply, '403::unsubscribe_failed');
                         }
-                        callback();
+                        callback(undefined, true);
                     }
                 });
             } else {
                 _error(reply, "403::subscription_missing");
-                callback();
+                callback(undefined, true);
             }
         }
 
@@ -1417,7 +1454,7 @@ module.exports = (() => {
             reply.successful = true;
             _self._removeServerSession(session, false);
             session._flush();
-            callback();
+            callback(undefined, true);
         }
 
         function _notifyListeners(channel, session, message, callback) {
@@ -1436,21 +1473,14 @@ module.exports = (() => {
                     _asyncFoldLeft(listeners, true, (processListener, listener, lsLoop) => {
                         if (processListener) {
                             listener(session, ch, message, (failure, result) => {
-                                if (failure) {
-                                    lsLoop(failure);
-                                } else {
-                                    if (result === undefined) {
-                                        result = true;
-                                    }
-                                    lsLoop(null, result);
-                                }
+                                lsLoop(failure, result !== false);
                             });
                         } else {
-                            lsLoop(null, false);
+                            lsLoop(undefined, false);
                         }
                     }, chLoop);
                 } else {
-                    chLoop(null, false);
+                    chLoop(undefined, false);
                 }
             }, callback);
         }
@@ -1485,8 +1515,10 @@ module.exports = (() => {
                     } else if (result) {
                         _publish2(channel, session, message, callback);
                     } else {
-                        _error(message.reply, '404::message_deleted');
-                        callback();
+                        if (incoming) {
+                            _error(message.reply, '404::message_deleted');
+                        }
+                        callback(undefined, false);
                     }
                 });
             } else {
@@ -1524,7 +1556,7 @@ module.exports = (() => {
                 if (channel.broadcast) {
                     _notifySubscribers(channel, session, message);
                 }
-                callback();
+                callback(undefined, true);
             }
         }
 
@@ -1624,14 +1656,35 @@ module.exports = (() => {
             },
             /**
              * @param {string} event the event type
-             * @returns {Array} the listeners for the given event
+             * @returns {function[]} the listeners for the given event
              */
             listeners: event => _listeners[event] || [],
             /**
+             * @callback serverIncomingFn
+             * @param {CometDServer} cometd - the CometD server
+             * @param {ServerSession} session - the session receiving the message
+             * @param {object} message - the incoming message
+             * @param {boolCallbackFn} callback - the callback to complete:
+             * true to continue the processing, false to stop the processing
+             */
+            /**
+             * @callback serverOutgoingFn
+             * @param {CometDServer} cometd - the CometD server
+             * @param {ServerSession} [sender] - the session that sends the message
+             * @param {ServerSession} session - the session the message is sent to
+             * @param {object} message - the outgoing message
+             * @param {boolCallbackFn} callback - the callback to complete:
+             * true to continue the processing, false to stop the processing
+             */
+            /**
+             * @typedef {object} ServerExtension
+             * @property {serverIncomingFn} [incoming]
+             * @property {serverOutgoingFn} [outgoing]
+             */
+            /**
              * Adds the given extension to the list of extensions.
-             * TODO: document extension method signature
              *
-             * @param extension the extension to add
+             * @param {ServerExtension} extension the extension to add
              */
             addExtension: extension => {
                 _extensions.push(extension);
@@ -1639,8 +1692,8 @@ module.exports = (() => {
             /**
              * Removes the given extension from the list of extensions.
              *
-             * @param extension the extension to remove
-             * @return whether the extension was removed
+             * @param {ServerExtension} extension the extension to remove
+             * @return {boolean} whether the extension was removed
              */
             removeExtension: extension => {
                 let index = _extensions.indexOf(extension);
@@ -1651,7 +1704,7 @@ module.exports = (() => {
                 return false;
             },
             /**
-             * @returns {*[]} the list of extensions
+             * @returns {ServerExtension[]} the list of extensions
              */
             get extensions() {
                 return _extensions.slice();
@@ -1673,8 +1726,8 @@ module.exports = (() => {
                 _httpTransport.handle(request, response);
             },
             /**
-             * @param name the channel name
-             * @returns {ServerChannel} a ServerChannel with the given name,
+             * @param {string} name the channel name
+             * @returns {?ServerChannel} a ServerChannel with the given name,
              * or nothing if there is no channel with the given name
              * @see #createServerChannel
              */
@@ -1684,7 +1737,7 @@ module.exports = (() => {
              * If the channel already exists, returns it;
              * otherwise the channel is created and cached.
              *
-             * @param name the channel name
+             * @param {string} name the channel name
              * @returns {ServerChannel} a ServerChannel with the given name
              * @see #getServerChannel
              */
@@ -1697,7 +1750,7 @@ module.exports = (() => {
                 return channel;
             },
             /**
-             * @param id the session id
+             * @param {string} id the session id
              * @returns {ServerSession} a ServerSession with the given session id,
              * or nothing if there is no session with the given id
              */
@@ -1789,8 +1842,7 @@ module.exports = (() => {
                     } else if (result) {
                         _publish1(channel, session, message, incoming, callback);
                     } else {
-                        // TODO: message has been deleted, call _error()?
-                        callback();
+                        callback(undefined, false);
                     }
                 });
             },
@@ -1800,23 +1852,17 @@ module.exports = (() => {
                         if (extension.incoming) {
                             try {
                                 extension.incoming(_self, session, message, (failure, ret) => {
-                                    if (failure) {
-                                        loop(failure);
-                                    } else if (ret === false) {
-                                        loop(null, false);
-                                    } else {
-                                        loop(null, true);
-                                    }
+                                    loop(failure, ret !== false);
                                 });
                             } catch (failure) {
                                 _self._log('cometd.server', 'extension failure', failure, failure.stack);
-                                loop(null, true);
+                                loop(undefined, true);
                             }
                         } else {
-                            loop(null, true);
+                            loop(undefined, true);
                         }
                     } else {
-                        loop(null, false);
+                        loop(undefined, false);
                     }
                 }, callback);
             },
@@ -1826,23 +1872,17 @@ module.exports = (() => {
                         if (extension.outgoing) {
                             try {
                                 extension.outgoing(_self, session, session, message, (failure, ret) => {
-                                    if (failure) {
-                                        loop(failure);
-                                    } else if (ret === false) {
-                                        loop(null, false);
-                                    } else {
-                                        loop(null, true);
-                                    }
+                                    loop(failure, ret !== false);
                                 });
                             } catch (failure) {
                                 _self._log('cometd.server', 'extension failure', failure, failure.stack);
-                                loop(null, true);
+                                loop(undefined, true);
                             }
                         } else {
-                            loop(null, true);
+                            loop(undefined, true);
                         }
                     } else {
-                        loop(null, false);
+                        loop(undefined, false);
                     }
                 }, callback);
             },
@@ -1854,10 +1894,10 @@ module.exports = (() => {
                         if (session) {
                             session._extendOutgoing(session, session, reply, callback);
                         } else {
-                            callback(null, reply);
+                            callback(undefined, reply);
                         }
                     } else {
-                        callback(null, null);
+                        callback(undefined, null);
                     }
                 });
             },
@@ -1906,7 +1946,7 @@ module.exports = (() => {
 
     return {
         /**
-         * @param {object} options the configuration options
+         * @param {object.<string, *>} options the configuration options
          * @returns {CometDServer} a new CometDServer with the given configuration options
          */
         createCometDServer: options => new CometDServer(options)

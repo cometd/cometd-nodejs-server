@@ -97,7 +97,7 @@ module.exports = (() => ({
                             }
                         }
                     }
-                    callback();
+                    callback(undefined, true);
                 },
                 outgoing: (sender, session, message, callback) => {
                     if (message.channel === '/meta/handshake') {
@@ -112,7 +112,7 @@ module.exports = (() => ({
                         message.ext = cnExt;
                         cnExt.ack = batch;
                     }
-                    callback();
+                    callback(undefined, message);
                 }
             };
         }
@@ -120,14 +120,13 @@ module.exports = (() => ({
         return {
             incoming: (cometd, session, message, callback) => {
                 if (message.channel === '/meta/handshake') {
-                    const clientExt = message.ext;
-                    const clientAck = clientExt && clientExt.ack === true;
-                    if (clientAck) {
+                    const ext = message.ext;
+                    if (ext && ext.ack === true) {
                         cometd._log('cometd.server.ext.ack', 'enabled acknowledged messages extension for session', session.id);
                         session.addExtension(new SessionExtension(cometd, session));
                     }
                 }
-                callback();
+                callback(undefined, true);
             }
         };
     }

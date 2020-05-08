@@ -175,7 +175,7 @@ describe('usage', () => {
     it('invokes handshake policy', done => {
         _cometd.policy = {
             canHandshake: (session, message, callback) => {
-                callback(null, message.credentials);
+                callback(undefined, !!message.credentials);
             }
         };
 

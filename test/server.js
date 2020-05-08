@@ -696,4 +696,104 @@ describe('server', () => {
             '"supportedConnectionTypes": ["long-polling"]' +
             '}]');
     });
+
+    it('resends messages when connection is broken', done => {
+        _cometd.addExtension(new require('../ack-extension').AcknowledgedMessagesExtension());
+
+        const channelName = '/foo';
+        http.request(newRequest(), r0 => {
+            receiveResponse(r0, replies0 => {
+                const hsReply = replies0[0];
+                assert.strictEqual(hsReply.successful, true);
+                assert.strictEqual(hsReply.ext.ack, true);
+                const sessionId = hsReply.clientId;
+                const cookie = extractBrowserCookie(r0);
+                const subscribe = newRequest();
+                subscribe.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                http.request(subscribe, r1 => {
+                    receiveResponse(r1, replies1 => {
+                        const reply1 = replies1[0];
+                        assert.strictEqual(reply1.successful, true);
+                        const connect1 = newRequest();
+                        connect1.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                        http.request(connect1, r2 => {
+                            receiveResponse(r2, replies2 => {
+                                const cnReply1 = replies2[0];
+                                assert.strictEqual(cnReply1.successful, true);
+                                const batch = cnReply1.ext.ack;
+
+                                // The /meta/connect that will be held.
+                                const connect2 = newRequest();
+                                connect2.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                                const rq3 = http.request(connect2);
+
+                                // Reconnect after we detect the connection was broken.
+                                const reconnectLatch = new Latch(2, () => {
+                                    const connect3 = newRequest();
+                                    connect3.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                                    http.request(connect3, r4 => {
+                                        receiveResponse(r4, replies4 => {
+                                            assert.strictEqual(2, replies4.length);
+                                            const message = replies4[0];
+                                            assert.strictEqual(message.channel, channelName);
+                                            const cnReply3 = replies4[1];
+                                            assert.strictEqual(cnReply3.successful, true);
+                                            done();
+                                        });
+                                    }).end('[{' +
+                                        '"id": "5",' +
+                                        '"channel": "/meta/connect",' +
+                                        '"clientId": "' + sessionId + '",' +
+                                        '"connectionType": "long-polling",' +
+                                        '"advice": {' +
+                                        '  "timeout": 0' +
+                                        '},' +
+                                        '"ext": {"ack": ' + batch + '}' +
+                                        '}]');
+
+                                });
+                                rq3.on('error', () => reconnectLatch.signal());
+
+                                // When the /meta/connect is suspended, break the connection and emit a message.
+                                const session = _cometd.getServerSession(sessionId);
+                                session.addListener('suspended', () => {
+                                    rq3.destroy();
+                                    // Emit the message on the broken connection.
+                                    _cometd.getServerChannel(channelName).publish(null, 'data', () => reconnectLatch.signal());
+                                });
+
+                                rq3.end('[{' +
+                                    '"id": "4",' +
+                                    '"channel": "/meta/connect",' +
+                                    '"clientId": "' + sessionId + '",' +
+                                    '"connectionType": "long-polling",' +
+                                    '"ext": {"ack": ' + batch + '}' +
+                                    '}]');
+                            });
+                        }).end('[{' +
+                            '"id": "3",' +
+                            '"channel": "/meta/connect",' +
+                            '"clientId": "' + sessionId + '",' +
+                            '"connectionType": "long-polling",' +
+                            '"advice": {' +
+                            '  "timeout": 0' +
+                            '},' +
+                            '"ext": {"ack": -1}' +
+                            '}]');
+                    });
+                }).end('[{' +
+                    '"id": "2",' +
+                    '"channel": "/meta/subscribe",' +
+                    '"clientId": "' + sessionId + '",' +
+                    '"subscription": "' + channelName + '"' +
+                    '}]');
+            });
+        }).end('[{' +
+            '"id": "1",' +
+            '"channel": "/meta/handshake",' +
+            '"version": "1.0",' +
+            '"supportedConnectionTypes": ["long-polling"],' +
+            '"ext": {"ack": true}' +
+            '}]');
+    });
 });

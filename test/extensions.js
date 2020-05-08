@@ -41,10 +41,10 @@ describe('extensions', () => {
                 session.addExtension({
                     incoming: (session, message, callback) => {
                         latch.signal();
-                        callback(null, true);
+                        callback(undefined, true);
                     }
                 });
-                callback(null, true);
+                callback(undefined, true);
             }
         });
 
@@ -63,9 +63,9 @@ describe('extensions', () => {
                     let advice = message.reply.advice || {};
                     message.reply.advice = advice;
                     advice.reconnect = 'none';
-                    callback(null, false);
+                    callback(undefined, false);
                 } else {
-                    callback(null, true);
+                    callback(undefined, true);
                 }
             }
         });
@@ -87,13 +87,13 @@ describe('extensions', () => {
                             let advice = message.reply.advice || {};
                             message.reply.advice = advice;
                             advice.reconnect = 'none';
-                            callback(null, false);
+                            callback(undefined, false);
                         } else {
-                            callback(null, true);
+                            callback(undefined, true);
                         }
                     }
                 });
-                callback(null, true);
+                callback(undefined, true);
             }
         });
 
@@ -115,7 +115,7 @@ describe('extensions', () => {
                         incoming: (session, message, callback) => {
                             if (counter === 2) {
                                 counter = 3;
-                                callback(null, true);
+                                callback(undefined, true);
                             } else {
                                 callback(new Error('' + counter));
                             }
@@ -123,13 +123,13 @@ describe('extensions', () => {
                         outgoing: (sender, session, message, callback) => {
                             if (counter === 7) {
                                 counter = 8;
-                                callback(null, message);
+                                callback(undefined, message);
                             } else {
                                 callback(new Error('' + counter));
                             }
                         }
                     });
-                    callback(null, true);
+                    callback(undefined, true);
                 } else {
                     callback(new Error('' + counter));
                 }
@@ -137,7 +137,7 @@ describe('extensions', () => {
             outgoing: (cometd, sender, session, message, callback) => {
                 if (counter === 5) {
                     counter = 6;
-                    callback(null, true);
+                    callback(undefined, true);
                 } else {
                     callback(new Error('' + counter));
                 }
@@ -151,7 +151,7 @@ describe('extensions', () => {
                         incoming: (session, message, callback) => {
                             if (counter === 3) {
                                 counter = 4;
-                                callback(null, true);
+                                callback(undefined, true);
                             } else {
                                 callback(new Error('' + counter));
                             }
@@ -159,13 +159,13 @@ describe('extensions', () => {
                         outgoing: (sender, session, message, callback) => {
                             if (counter === 6) {
                                 counter = 7;
-                                callback(null, message);
+                                callback(undefined, message);
                             } else {
                                 callback(new Error('' + counter));
                             }
                         }
                     });
-                    callback(null, true);
+                    callback(undefined, true);
                 } else {
                     callback(new Error('' + counter));
                 }
@@ -173,7 +173,7 @@ describe('extensions', () => {
             outgoing: (cometd, sender, session, message, callback) => {
                 if (counter === 4) {
                     counter = 5;
-                    callback(null, true);
+                    callback(undefined, true);
                 } else {
                     callback(new Error('' + counter));
                 }
