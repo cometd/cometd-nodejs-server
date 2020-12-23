@@ -131,9 +131,11 @@ module.exports = (() => {
                     if (list.length === 0) {
                         delete listeners[event];
                     }
+                    return true;
                 }
             }
         }
+        return false;
     }
 
     function _notifyEvent(listeners, args) {
@@ -808,7 +810,7 @@ module.exports = (() => {
              * @param {function} fn the listener function
              */
             removeListener: (event, fn) => {
-                _removeListener(_listeners, event, fn);
+                return _removeListener(_listeners, event, fn);
             },
             /**
              * @returns {ServerSession[]} the list of ServerSession subscribed to this channel
@@ -986,7 +988,7 @@ module.exports = (() => {
              * @param {function} fn the listener function
              */
             removeListener: (event, fn) => {
-                _removeListener(_listeners, event, fn);
+                return _removeListener(_listeners, event, fn);
             },
             /**
              * Delivers a message to the remote client represented by this ServerSession.
@@ -1517,7 +1519,7 @@ module.exports = (() => {
                 const subscribers = channel.subscribers;
                 _self._log('cometd.server', 'notifying', subscribers.length, 'subscribers on', channel.name);
                 subscribers.forEach(subscriber => {
-                    subscriber._deliver1(session, message);
+                    subscriber._deliver1(session, message, null);
                 });
             });
         }
@@ -1667,7 +1669,7 @@ module.exports = (() => {
              * @param {function} fn the listener function
              */
             removeListener: (event, fn) => {
-                _removeListener(_listeners, event, fn);
+                return _removeListener(_listeners, event, fn);
             },
             /**
              * @param {string} event the event type

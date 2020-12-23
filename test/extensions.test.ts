@@ -13,29 +13,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-'use strict';
+import assert = require('assert');
+import http = require('http');
+import serverLib = require('..');
+// @ts-ignore
+import clientLib = require('cometd');
+import {Latch} from './latch';
+import {AddressInfo} from 'net';
 
-const assert = require('assert');
-const http = require('http');
-const serverLib = require('..');
 require('cometd-nodejs-client').adapt();
-const clientLib = require('cometd');
-const Latch  = require('./latch.js');
 
 describe('extensions', () => {
-    let _server;
-    let _http;
-    let _client;
-    let _uri;
+    let _server: serverLib.CometDServer;
+    let _http: http.Server;
+    let _client: clientLib.CometD;
+    let _uri: string;
 
     beforeEach(done => {
         _server = serverLib.createCometDServer();
         _http = http.createServer(_server.handle);
         _http.listen(0, 'localhost', () => {
-            let port = _http.address().port;
+            let port = (_http.address() as AddressInfo).port;
             console.log('listening on localhost:' + port);
             _uri = 'http://localhost:' + port + '/cometd';
             _client = new clientLib.CometD();
+            _client.unregisterTransport('websocket');
             _client.configure({
                 url: _uri
             });
@@ -63,7 +65,7 @@ describe('extensions', () => {
             }
         });
 
-        _client.handshake(hs => {
+        _client.handshake((hs: any) => {
             if (hs.successful) {
                 _client.disconnect();
                 latch.signal();
@@ -75,8 +77,10 @@ describe('extensions', () => {
         _server.addExtension({
             incoming: (cometd, session, message, callback) => {
                 if (message.channel === '/meta/handshake') {
-                    let advice = message.reply.advice || {};
-                    message.reply.advice = advice;
+                    const reply = message.reply;
+                    let advice = reply?.advice || {};
+                    // @ts-ignore
+                    reply.advice = advice;
                     advice.reconnect = 'none';
                     callback(undefined, false);
                 } else {
@@ -85,7 +89,7 @@ describe('extensions', () => {
             }
         });
 
-        _client.handshake(hs => {
+        _client.handshake((hs: any) => {
             assert.strictEqual(hs.successful, false);
             assert.ok(hs.error);
             assert(hs.error.indexOf('message_deleted') > 0);
@@ -99,8 +103,10 @@ describe('extensions', () => {
                 session.addExtension({
                     incoming: (session, message, callback) => {
                         if (message.channel === '/meta/handshake') {
-                            let advice = message.reply.advice || {};
-                            message.reply.advice = advice;
+                            let reply = message.reply;
+                            let advice = reply?.advice || {};
+                            // @ts-ignore
+                            reply.advice = advice;
                             advice.reconnect = 'none';
                             callback(undefined, false);
                         } else {
@@ -112,7 +118,7 @@ describe('extensions', () => {
             }
         });
 
-        _client.handshake(hs => {
+        _client.handshake((hs: any) => {
             assert.strictEqual(hs.successful, false);
             assert.ok(hs.error);
             assert(hs.error.indexOf('message_deleted') > 0);
@@ -195,7 +201,7 @@ describe('extensions', () => {
             }
         });
 
-        _client.handshake(hs => {
+        _client.handshake((hs: any) => {
             assert.strictEqual(hs.successful, true);
             assert.strictEqual(counter, 8);
             _client.disconnect();

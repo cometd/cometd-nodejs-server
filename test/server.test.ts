@@ -13,24 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-'use strict';
-
-const url = require('url');
-const http = require('http');
-const assert = require('assert');
-const Latch = require('./latch');
-const cometd = require('..');
+import assert = require('assert');
+import url = require('url');
+import http = require('http');
+import serverLib = require('..');
+import {Latch} from './latch';
+import {AddressInfo} from 'net';
 
 describe('server', () => {
-    let _cometd;
-    let _server;
-    let _uri;
+    let _server: serverLib.CometDServer;
+    let _http: http.Server;
+    let _uri: string;
 
     beforeEach(done => {
-        _cometd = cometd.createCometDServer();
-        _server = http.createServer(_cometd.handle);
-        _server.listen(0, 'localhost', () => {
-            const port = _server.address().port;
+        _server = serverLib.createCometDServer();
+        _http = http.createServer(_server.handle);
+        _http.listen(0, 'localhost', () => {
+            const port = (_http.address() as AddressInfo).port;
             console.log('listening on localhost:' + port);
             _uri = 'http://localhost:' + port + '/cometd';
             done();
@@ -38,21 +37,22 @@ describe('server', () => {
     });
 
     afterEach(() => {
+        _http.close();
         _server.close();
-        _cometd.close();
     });
 
-    function newRequest() {
-        const request = url.parse(_uri);
+    function newRequest(headers?: any) {
+        // Could not find a way to make it work with TypeScript.
+        const request = url.parse(_uri) as any;
         request.method = 'POST';
         request.agent = new http.Agent({
             keepAlive: true
         });
-        request.headers = {};
+        request.headers = headers || {};
         return request;
     }
 
-    function receiveResponseWithStatus(response, status, callback) {
+    function receiveResponseWithStatus(response: http.IncomingMessage, status: number, callback: (replies: any[]) => void) {
         assert.strictEqual(response.statusCode, status);
         let json = '';
         response.on('data', chunk => {
@@ -62,21 +62,21 @@ describe('server', () => {
             if (json) {
                 callback(JSON.parse(json));
             } else {
-                callback();
+                callback([]);
             }
         });
     }
 
-    function receiveResponse(response, callback) {
+    function receiveResponse(response: http.IncomingMessage, callback: (replies: any[]) => void) {
         receiveResponseWithStatus(response, 200, callback);
     }
 
-    function extractBrowserCookie(response) {
+    function extractBrowserCookie(response: http.IncomingMessage) {
         const headers = response.headers;
         for (let name in headers) {
             if (headers.hasOwnProperty(name)) {
                 if (/^set-cookie$/i.test(name)) {
-                    const values = headers[name];
+                    const values = headers[name] || [];
                     for (let i = 0; i < values.length; ++i) {
                         const header = values[i];
                         const parts = header.split(';');
@@ -147,8 +147,9 @@ describe('server', () => {
                 assert.strictEqual(reply1.successful, true);
                 const sessionId = reply1.clientId;
                 const cookie = extractBrowserCookie(r1);
-                const connect = newRequest();
-                connect.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                const connect = newRequest({
+                    Cookie: 'BAYEUX_BROWSER=' + cookie
+                });
                 http.request(connect, r2 => {
                     receiveResponse(r2, replies2 => {
                         const reply2 = replies2[0];
@@ -178,8 +179,9 @@ describe('server', () => {
                 assert.strictEqual(reply1.successful, true);
                 const sessionId = reply1.clientId;
                 const cookie = extractBrowserCookie(r1);
-                const subscribe = newRequest();
-                subscribe.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                const subscribe = newRequest({
+                    Cookie: 'BAYEUX_BROWSER=' + cookie
+                });
                 http.request(subscribe, r2 => {
                     receiveResponse(r2, replies2 => {
                         const reply2 = replies2[0];
@@ -206,8 +208,9 @@ describe('server', () => {
                 assert.strictEqual(reply1.successful, true);
                 const sessionId = reply1.clientId;
                 const cookie = extractBrowserCookie(r1);
-                const unsubscribe = newRequest();
-                unsubscribe.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                const unsubscribe = newRequest({
+                    Cookie: 'BAYEUX_BROWSER=' + cookie
+                });
                 http.request(unsubscribe, r2 => {
                     receiveResponse(r2, replies2 => {
                         const reply2 = replies2[0];
@@ -234,8 +237,9 @@ describe('server', () => {
                 assert.strictEqual(reply1.successful, true);
                 const sessionId = reply1.clientId;
                 const cookie = extractBrowserCookie(r1);
-                const disconnect = newRequest();
-                disconnect.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                const disconnect = newRequest({
+                    Cookie: 'BAYEUX_BROWSER=' + cookie
+                });
                 http.request(disconnect, r2 => {
                     receiveResponse(r2, replies2 => {
                         const reply2 = replies2[0];
@@ -256,7 +260,7 @@ describe('server', () => {
 
     it('holds /meta/connect', function(done) {
         const timeout = 2000;
-        _cometd.options.timeout = timeout;
+        _server.options.timeout = timeout;
         this.timeout(2 * timeout);
 
         http.request(newRequest(), r1 => {
@@ -265,14 +269,16 @@ describe('server', () => {
                 assert.strictEqual(reply1.successful, true);
                 const sessionId = reply1.clientId;
                 const cookie = extractBrowserCookie(r1);
-                const connect1 = newRequest();
-                connect1.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                const connect1 = newRequest({
+                    Cookie: 'BAYEUX_BROWSER=' + cookie
+                });
                 http.request(connect1, r2 => {
                     receiveResponse(r2, replies2 => {
                         const reply2 = replies2[0];
                         assert.strictEqual(reply2.successful, true);
-                        const connect2 = newRequest();
-                        connect2.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                        const connect2 = newRequest({
+                            Cookie: 'BAYEUX_BROWSER=' + cookie
+                        });
                         const start = Date.now();
                         http.request(connect2, r3 => {
                             receiveResponse(r3, replies3 => {
@@ -305,9 +311,9 @@ describe('server', () => {
     });
 
     it('sweeps session after /meta/handshake', function(done) {
-        _cometd.options.sweepPeriod = 500;
+        _server.options.sweepPeriod = 500;
         const maxInterval = 1000;
-        _cometd.options.maxInterval = maxInterval;
+        _server.options.maxInterval = maxInterval;
         this.timeout(3 * maxInterval);
 
         http.request(newRequest(), response => {
@@ -315,7 +321,7 @@ describe('server', () => {
                 assert.strictEqual(replies.length, 1);
                 const reply = replies[0];
                 assert.strictEqual(reply.successful, true);
-                const session = _cometd.getServerSession(reply.clientId);
+                const session = _server.getServerSession(reply.clientId);
                 session.addListener('removed', (s, timeout) => {
                     assert.strictEqual(s, session);
                     assert.strictEqual(timeout, true);
@@ -330,9 +336,9 @@ describe('server', () => {
     });
 
     it('sweeps session after /meta/connect', function(done) {
-        _cometd.options.sweepPeriod = 500;
+        _server.options.sweepPeriod = 500;
         const maxInterval = 1000;
-        _cometd.options.maxInterval = maxInterval;
+        _server.options.maxInterval = maxInterval;
         this.timeout(3 * maxInterval);
 
         http.request(newRequest(), r1 => {
@@ -341,13 +347,14 @@ describe('server', () => {
                 assert.strictEqual(reply1.successful, true);
                 const sessionId = reply1.clientId;
                 const cookie = extractBrowserCookie(r1);
-                const connect = newRequest();
-                connect.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                const connect = newRequest({
+                    Cookie: 'BAYEUX_BROWSER=' + cookie
+                });
                 http.request(connect, r2 => {
                     receiveResponse(r2, replies2 => {
                         const reply2 = replies2[0];
                         assert.strictEqual(reply2.successful, true);
-                        const session = _cometd.getServerSession(sessionId);
+                        const session = _server.getServerSession(sessionId);
                         session.addListener('removed', (s, timeout) => {
                             assert.strictEqual(s, session);
                             assert.strictEqual(timeout, true);
@@ -372,7 +379,7 @@ describe('server', () => {
 
     it('holds /meta/connect when another request is being processed', function(done) {
         const timeout = 2000;
-        _cometd.options.timeout = timeout;
+        _server.options.timeout = timeout;
         this.timeout(2 * timeout);
 
         http.request(newRequest(), r1 => {
@@ -381,14 +388,15 @@ describe('server', () => {
                 assert.strictEqual(reply1.successful, true);
                 const sessionId = reply1.clientId;
                 const cookie = extractBrowserCookie(r1);
-                const connect1 = newRequest();
-                connect1.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                const connect1 = newRequest({
+                    Cookie: 'BAYEUX_BROWSER=' + cookie
+                });
                 http.request(connect1, r2 => {
                     receiveResponse(r2, replies2 => {
                         const reply2 = replies2[0];
                         assert.strictEqual(reply2.successful, true);
                         const channelName = '/baz';
-                        _cometd.createServerChannel(channelName).addListener('message', (session, channel, message, callback) => {
+                        _server.createServerChannel(channelName).addListener('message', (session, channel, message, callback) => {
                             // Put a message in the session queue.
                             session.deliver(null, channelName, 'hello2');
                             // Finish the processing of this message when the /meta/connect is suspended.
@@ -397,8 +405,9 @@ describe('server', () => {
                             });
                             // Send the /meta/connect that must be held,
                             // even if there are messages in the queue.
-                            const connect2 = newRequest();
-                            connect2.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                            const connect2 = newRequest({
+                                Cookie: 'BAYEUX_BROWSER=' + cookie
+                            });
                             const start = Date.now();
                             http.request(connect2, r4 => {
                                 receiveResponse(r4, replies4 => {
@@ -414,8 +423,9 @@ describe('server', () => {
                                 '"connectionType": "long-polling"' +
                                 '}]');
                         });
-                        const publish = newRequest();
-                        publish.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                        const publish = newRequest({
+                            Cookie: 'BAYEUX_BROWSER=' + cookie
+                        });
                         http.request(publish, r3 => {
                             receiveResponse(r3, replies3 => {
                                 assert.strictEqual(replies3.length, 2);
@@ -444,7 +454,7 @@ describe('server', () => {
 
     it('holds /meta/connect when another request arrives', function(done) {
         const timeout = 2000;
-        _cometd.options.timeout = timeout;
+        _server.options.timeout = timeout;
         this.timeout(2 * timeout);
         // _cometd.options.logLevel = 'debug';
 
@@ -454,23 +464,25 @@ describe('server', () => {
                 assert.strictEqual(reply1.successful, true);
                 const sessionId = reply1.clientId;
                 const cookie = extractBrowserCookie(r1);
-                const connect1 = newRequest();
-                connect1.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                const connect1 = newRequest({
+                    Cookie: 'BAYEUX_BROWSER=' + cookie
+                });
                 http.request(connect1, r2 => {
                     receiveResponse(r2, replies2 => {
                         const reply2 = replies2[0];
                         assert.strictEqual(reply2.successful, true);
                         const channelName = '/baz';
-                        _cometd.createServerChannel(channelName).addListener('message', (session, channel, message, callback) => {
+                        _server.createServerChannel(channelName).addListener('message', (session, channel, message, callback) => {
                             // Put a message in the session queue.
                             session.deliver(null, channelName, 'hello2');
                             callback();
                         });
 
                         // When the /meta/connect is suspended, send the other request.
-                        _cometd.getServerSession(sessionId).addListener('suspended', () => {
-                            const publish = newRequest();
-                            publish.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                        _server.getServerSession(sessionId).addListener('suspended', () => {
+                            const publish = newRequest({
+                                Cookie: 'BAYEUX_BROWSER=' + cookie
+                            });
                             http.request(publish, r4 => {
                                 receiveResponse(r4, replies4 => {
                                     assert.strictEqual(replies4.length, 2);
@@ -483,8 +495,9 @@ describe('server', () => {
                         });
 
                         // Send the /meta/connect that will be held.
-                        const connect2 = newRequest();
-                        connect2.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                        const connect2 = newRequest({
+                            Cookie: 'BAYEUX_BROWSER=' + cookie
+                        });
                         const start = Date.now();
                         http.request(connect2, r3 => {
                             receiveResponse(r3, replies3 => {
@@ -518,15 +531,15 @@ describe('server', () => {
 
     it('handles body already read', done => {
         // Replace the handler.
-        _server.removeListener('request', _cometd.handle);
-        _server.addListener('request', (request, response) => {
+        _http.removeListener('request', _server.handle);
+        _http.addListener('request', (request, response) => {
             let content = '';
-            request.addListener('data', chunk => {
+            request.addListener('data', (chunk: any) => {
                 content += chunk;
             });
             request.addListener('end', () => {
                 request.body = JSON.parse(content);
-                _cometd.handle(request, response);
+                _server.handle(request, response);
             });
         });
 
@@ -544,10 +557,10 @@ describe('server', () => {
     });
 
     it('handles client close on held /meta/connect', function(done) {
-        _cometd.options.timeout = 1000;
-        _cometd.options.sweepPeriod = 500;
+        _server.options.timeout = 1000;
+        _server.options.sweepPeriod = 500;
         const maxInterval = 1000;
-        _cometd.options.maxInterval = maxInterval;
+        _server.options.maxInterval = maxInterval;
         this.timeout(3 * maxInterval);
 
         const latch = new Latch(2, done);
@@ -557,7 +570,7 @@ describe('server', () => {
                 assert.strictEqual(reply1.successful, true);
                 const sessionId = reply1.clientId;
 
-                const session = _cometd.getServerSession(sessionId);
+                const session = _server.getServerSession(sessionId);
                 session.addListener('removed', (s, timeout) => {
                     assert.strictEqual(s, session);
                     assert.strictEqual(timeout, true);
@@ -565,16 +578,18 @@ describe('server', () => {
                 });
 
                 const cookie = extractBrowserCookie(r1);
-                const connect1 = newRequest();
-                connect1.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                const connect1 = newRequest({
+                    Cookie: 'BAYEUX_BROWSER=' + cookie
+                });
                 http.request(connect1, r2 => {
                     receiveResponse(r2, replies2 => {
                         const reply2 = replies2[0];
                         assert.strictEqual(reply2.successful, true);
 
                         // Send the /meta/connect that will be held, then abort it.
-                        const connect2 = newRequest();
-                        connect2.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                        const connect2 = newRequest({
+                            Cookie: 'BAYEUX_BROWSER=' + cookie
+                        });
                         const request = http.request(connect2);
 
                         // The request errors because it did not receive the response.
@@ -586,9 +601,9 @@ describe('server', () => {
                             '"channel": "/meta/connect",' +
                             '"clientId": "' + sessionId + '",' +
                             '"connectionType": "long-polling"' +
-                            '}]', 'UTF-8', () => {
+                            '}]', 'utf-8', () => {
                             // Force the close of the connection after sending the request.
-                            request.connection.destroy();
+                            request.connection?.destroy();
                         });
                     });
                 }).end('[{' +
@@ -609,9 +624,9 @@ describe('server', () => {
 
     it('responds custom HTTP code to held /meta/connect when a new /meta/connect arrives', function(done) {
         const timeout = 2000;
-        _cometd.options.timeout = timeout;
+        _server.options.timeout = timeout;
         const httpCode = 400;
-        _cometd.options.duplicateMetaConnectHttpResponseCode = httpCode;
+        _server.options.duplicateMetaConnectHttpResponseCode = httpCode;
         this.timeout(2 * timeout);
         // _cometd.options.logLevel = 'debug';
 
@@ -621,8 +636,9 @@ describe('server', () => {
                 assert.strictEqual(hsReply.successful, true);
                 const sessionId = hsReply.clientId;
                 const cookie = extractBrowserCookie(r0);
-                const connect1 = newRequest();
-                connect1.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                const connect1 = newRequest({
+                    Cookie: 'BAYEUX_BROWSER=' + cookie
+                });
                 http.request(connect1, r1 => {
                     receiveResponse(r1, replies1 => {
                         const cnReply1 = replies1[0];
@@ -630,10 +646,11 @@ describe('server', () => {
                         const latch = new Latch(2, done);
                         // When the first /meta/connect is suspended, send another /meta/connect.
                         let suspended = 0;
-                        _cometd.getServerSession(sessionId).addListener('suspended', () => {
+                        _server.getServerSession(sessionId).addListener('suspended', () => {
                             if (++suspended === 1) {
-                                const connect3 = newRequest();
-                                connect3.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                                const connect3 = newRequest({
+                                    Cookie: 'BAYEUX_BROWSER=' + cookie
+                                });
                                 const start = Date.now();
                                 http.request(connect3, r3 => {
                                     receiveResponse(r3, replies3 => {
@@ -652,8 +669,9 @@ describe('server', () => {
                             }
                         });
                         // Send the /meta/connect that will be held.
-                        const connect2 = newRequest();
-                        connect2.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                        const connect2 = newRequest({
+                            Cookie: 'BAYEUX_BROWSER=' + cookie
+                        });
                         http.request(connect2, r2 => {
                             receiveResponseWithStatus(r2, httpCode, () => {
                                 latch.signal();
@@ -683,7 +701,7 @@ describe('server', () => {
     });
 
     it('supports SameSite cookie attribute', done => {
-        _cometd.options.browserCookieSameSite = 'Strict';
+        _server.options.browserCookieSameSite = 'Strict';
 
         http.request(newRequest(), r => {
             receiveResponse(r, replies => {
@@ -693,7 +711,7 @@ describe('server', () => {
                 for (let name in headers) {
                     if (headers.hasOwnProperty(name)) {
                         if (/^set-cookie$/i.test(name)) {
-                            const values = headers[name];
+                            const values = headers[name] || [];
                             for (let i = 0; i < values.length; ++i) {
                                 if (values[i].indexOf('SameSite=Strict') >= 0) {
                                     done();
@@ -713,7 +731,8 @@ describe('server', () => {
     });
 
     it('resends messages when connection is broken', done => {
-        _cometd.addExtension(new require('../ack-extension').AcknowledgedMessagesExtension());
+        const serverAck = require('../ack-extension');
+        _server.addExtension(new serverAck.AcknowledgedMessagesExtension());
 
         const channelName = '/foo';
         http.request(newRequest(), r0 => {
@@ -723,14 +742,16 @@ describe('server', () => {
                 assert.strictEqual(hsReply.ext.ack, true);
                 const sessionId = hsReply.clientId;
                 const cookie = extractBrowserCookie(r0);
-                const subscribe = newRequest();
-                subscribe.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                const subscribe = newRequest({
+                    Cookie: 'BAYEUX_BROWSER=' + cookie
+                });
                 http.request(subscribe, r1 => {
                     receiveResponse(r1, replies1 => {
                         const reply1 = replies1[0];
                         assert.strictEqual(reply1.successful, true);
-                        const connect1 = newRequest();
-                        connect1.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                        const connect1 = newRequest({
+                            Cookie: 'BAYEUX_BROWSER=' + cookie
+                        });
                         http.request(connect1, r2 => {
                             receiveResponse(r2, replies2 => {
                                 const cnReply1 = replies2[0];
@@ -738,14 +759,16 @@ describe('server', () => {
                                 const batch = cnReply1.ext.ack;
 
                                 // The /meta/connect that will be held.
-                                const connect2 = newRequest();
-                                connect2.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                                const connect2 = newRequest({
+                                    Cookie: 'BAYEUX_BROWSER=' + cookie
+                                });
                                 const rq3 = http.request(connect2);
 
                                 // Reconnect after we detect the connection was broken.
                                 const reconnectLatch = new Latch(2, () => {
-                                    const connect3 = newRequest();
-                                    connect3.headers['Cookie'] = 'BAYEUX_BROWSER=' + cookie;
+                                    const connect3 = newRequest({
+                                        Cookie: 'BAYEUX_BROWSER=' + cookie
+                                    });
                                     http.request(connect3, r4 => {
                                         receiveResponse(r4, replies4 => {
                                             assert.strictEqual(2, replies4.length);
@@ -770,11 +793,11 @@ describe('server', () => {
                                 rq3.on('error', () => reconnectLatch.signal());
 
                                 // When the /meta/connect is suspended, break the connection and emit a message.
-                                const session = _cometd.getServerSession(sessionId);
+                                const session = _server.getServerSession(sessionId);
                                 session.addListener('suspended', () => {
                                     rq3.destroy();
                                     // Emit the message on the broken connection.
-                                    _cometd.getServerChannel(channelName).publish(null, 'data', () => reconnectLatch.signal());
+                                    _server.getServerChannel(channelName).publish(null, 'data', () => reconnectLatch.signal());
                                 });
 
                                 rq3.end('[{' +

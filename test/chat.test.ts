@@ -13,23 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-'use strict';
+import http = require('http');
+import serverLib = require('..');
+// @ts-ignore
+import clientLib = require('cometd');
+import {AddressInfo} from 'net';
 
-const http = require('http');
-const cometd = require('..');
 require('cometd-nodejs-client').adapt();
-const clientLib = require('cometd');
 
 describe('chat', () => {
-    let _cometd;
-    let _server;
-    let _uri;
+    let _server: serverLib.CometDServer;
+    let _http: http.Server;
+    let _uri: string;
 
     beforeEach(done => {
-        _cometd = cometd.createCometDServer();
-        _server = http.createServer(_cometd.handle);
-        _server.listen(0, 'localhost', () => {
-            const port = _server.address().port;
+        _server = serverLib.createCometDServer();
+        _http = http.createServer(_server.handle);
+        _http.listen(0, 'localhost', () => {
+            const port = (_http.address() as AddressInfo).port;
             console.log('listening on localhost:' + port);
             _uri = 'http://localhost:' + port + '/cometd';
             done();
@@ -37,8 +38,8 @@ describe('chat', () => {
     });
 
     afterEach(() => {
+        _http.close();
         _server.close();
-        _cometd.close();
     });
 
     const _broadcastChannel = '/chat';
@@ -46,7 +47,7 @@ describe('chat', () => {
 
     it('chats', function(done) {
         const delay = 1000;
-        _cometd.options.multiSessionInterval = delay;
+        _server.options.multiSessionInterval = delay;
         this.timeout(2 * delay);
 
         const client1 = new clientLib.CometD();
@@ -62,11 +63,11 @@ describe('chat', () => {
         // The second client must handshake after the first client to avoid
         // that the server generates two different BAYEUX_BROWSER cookies.
         // The second client will be in 'multiple-clients' mode.
-        client1.handshake(hs1 => {
+        client1.handshake((hs1: any) => {
             if (hs1.successful) {
-                client2.handshake(hs2 => {
+                client2.handshake((hs2: any) => {
                     if (hs2.successful) {
-                        client1.subscribe(_broadcastChannel, msg1 => {
+                        client1.subscribe(_broadcastChannel, (msg1: any) => {
                             if (msg1.data.user !== 1) {
                                 client1.disconnect(() => {
                                     client2.disconnect(() => {
@@ -74,16 +75,16 @@ describe('chat', () => {
                                     });
                                 });
                             }
-                        }, ss1 => {
+                        }, (ss1: any) => {
                             if (ss1.successful) {
-                                client2.subscribe(_broadcastChannel, msg2 => {
+                                client2.subscribe(_broadcastChannel, (msg2: any) => {
                                     if (msg2.data.user !== 2) {
                                         client2.publish(_serviceChannel, {
                                             user: 2,
                                             text: 'Hi ' + msg2.data.user + '! I am 2.'
                                         });
                                     }
-                                }, ss2 => {
+                                }, (ss2: any) => {
                                     if (ss2.successful) {
                                         client1.publish(_serviceChannel, {
                                             user: 1,
@@ -100,8 +101,8 @@ describe('chat', () => {
 
         // The service receives a service message and broadcasts it to subscribers.
         // This allows the service to analyze the message and perform business logic.
-        _cometd.createServerChannel(_serviceChannel).addListener('message', (session, channel, message, callback) => {
-            _cometd.getServerChannel(_broadcastChannel).publish(session, message.data, callback);
+        _server.createServerChannel(_serviceChannel).addListener('message', (session, channel, message, callback) => {
+            _server.getServerChannel(_broadcastChannel).publish(session, message.data, callback);
         });
     });
 });

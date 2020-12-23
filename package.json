@@ -13,16 +13,21 @@
   },
   "license": "Apache-2.0",
   "main": "cometd-nodejs-server.js",
+  "types": "cometd-nodejs-server.d.ts",
   "repository": {
     "type": "git",
     "url": "https://github.com/cometd/cometd-nodejs-server.git"
   },
   "scripts": {
-    "test": "mocha --exit"
+    "test": "mocha --exit --require ts-node/register --extensions ts test/*.ts"
   },
   "devDependencies": {
-    "cometd": "^3.1.4",
-    "cometd-nodejs-client": "^1.0.2",
-    "mocha": "^5.2.0"
+    "cometd": "latest",
+    "cometd-nodejs-client": "latest",
+    "mocha": "latest",
+    "typescript": "latest",
+    "ts-node": "latest",
+    "@types/node": "latest",
+    "@types/mocha": "latest"
   }
 }

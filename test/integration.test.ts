@@ -13,26 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-'use strict';
+import assert = require('assert');
+import http = require('http');
+import serverLib = require('..');
+// @ts-ignore
+import clientLib = require('cometd');
+import {Latch} from './latch';
+import {AddressInfo} from 'net';
 
-const http = require('http');
-const assert = require('assert');
-const Latch = require('./latch.js');
-const cometd = require('..');
 require('cometd-nodejs-client').adapt();
-const clientLib = require('cometd');
 
 describe('integration', () => {
-    let _cometd;
-    let _server;
-    let _client;
-    let _uri;
+    let _server: serverLib.CometDServer;
+    let _http: http.Server;
+    let _client: clientLib.CometD;
+    let _uri: string;
 
     beforeEach(done => {
-        _cometd = cometd.createCometDServer();
-        _server = http.createServer(_cometd.handle);
-        _server.listen(0, 'localhost', () => {
-            const port = _server.address().port;
+        _server = serverLib.createCometDServer();
+        _http = http.createServer(_server.handle);
+        _http.listen(0, 'localhost', () => {
+            const port = (_http.address() as AddressInfo).port;
             console.log('listening on localhost:' + port);
             _uri = 'http://localhost:' + port + '/cometd';
             _client = new clientLib.CometD();
@@ -44,31 +45,31 @@ describe('integration', () => {
     });
 
     afterEach(() => {
+        _http.close();
         _server.close();
-        _cometd.close();
     });
 
     it('sweeps channels', function(done) {
         const period = 500;
-        _cometd.options.sweepPeriod = period;
+        _server.options.sweepPeriod = period;
         this.timeout(5 * period);
 
         const channelName = '/jaz';
 
-        _cometd.addListener('channelRemoved', channel => {
+        _server.addListener('channelRemoved', channel => {
             assert.strictEqual(channel.name, channelName);
             done();
         });
 
-        _client.handshake(hs => {
+        _client.handshake((hs: any) => {
             if (hs.successful) {
-                let channel = _cometd.createServerChannel(channelName);
+                let channel = _server.createServerChannel(channelName);
                 const listener = () => undefined;
                 // Add a listener to make the channel non sweepable.
                 channel.addListener('message', listener);
                 // Wait for a few sweeps.
                 setTimeout(() => {
-                    channel = _cometd.getServerChannel(channelName);
+                    channel = _server.getServerChannel(channelName);
                     assert.ok(channel);
                     // Remove the listener to make the channel sweepable.
                     channel.removeListener('message', listener);
@@ -88,7 +89,7 @@ describe('integration', () => {
             url: _uri
         });
 
-        client2.addListener('/meta/connect', message => {
+        client2.addListener('/meta/connect', (message: any) => {
             const advice = message.advice;
             if (advice && advice['multiple-clients']) {
                 client1.disconnect(() => {
@@ -101,9 +102,9 @@ describe('integration', () => {
 
         // The second client must handshake after the first client to avoid
         // that the server generates two different BAYEUX_BROWSER cookies.
-        client1.handshake(hs1 => {
+        client1.handshake((hs1: any) => {
             if (hs1.successful) {
-                const session = _cometd.getServerSession(hs1.clientId);
+                const session = _server.getServerSession(hs1.clientId);
                 session.addListener('suspended', () => {
                     client2.handshake();
                 });
@@ -118,13 +119,13 @@ describe('integration', () => {
         });
 
         const latch = new Latch(2, done);
-        client.handshake(hs => {
+        client.handshake((hs: any) => {
             if (hs.successful) {
                 client.addListener('/meta/disconnect', () => {
                     latch.signal();
                 });
 
-                const session = _cometd.getServerSession(client.getClientId());
+                const session = _server.getServerSession(client.getClientId());
                 session.addListener('suspended', () => {
                     client.addListener('/meta/connect', () => {
                         latch.signal();

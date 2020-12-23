@@ -13,12 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-'use strict';
-
-module.exports = function(count, callback) {
-    this.signal = () => {
-        if (--count === 0) {
-            callback();
-        }
-    };
-};
+export class AcknowledgedMessagesExtension {
+    constructor();
+}

@@ -13,26 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-'use strict';
+export class Latch {
+    private _count: number;
+    private readonly _callback: () => void;
 
-const assert = require('assert');
-const cometd = require('..');
+    constructor(count: number, callback: () => void) {
+        this._count = count;
+        this._callback = callback;
+    }
 
-describe('library', () => {
-    it('exports factory method', () => {
-        assert.ok(cometd.createCometDServer);
-    });
-
-    it('constructs object', () => {
-        const server = cometd.createCometDServer();
-        assert.ok(server);
-        server.close();
-    });
-
-    it('constructs object with options', () => {
-        const options = {};
-        const server = cometd.createCometDServer(options);
-        assert.notStrictEqual(server.options, options);
-        server.close();
-    });
-});
+    signal() {
+        if (--this._count === 0) {
+            this._callback();
+        }
+    }
+}

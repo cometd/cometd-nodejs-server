@@ -13,32 +13,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-'use strict';
-
 const assert = require('assert');
-const http = require('http');
-const serverLib = require('..');
+import http = require('http');
+import serverLib = require('..');
+// @ts-ignore
+import clientLib = require('cometd');
+
 const serverAck = require('../ack-extension');
-require('cometd-nodejs-client').adapt();
-const clientLib = require('cometd');
 const ClientAck = require('cometd/AckExtension');
-const Latch = require('./latch.js');
+import {Latch} from './latch';
+import {AddressInfo} from 'net';
+
+require('cometd-nodejs-client').adapt();
 
 describe('acknowledgment extension', () => {
-    let _server;
-    let _http;
-    let _client;
-    let _uri;
+    let _server: serverLib.CometDServer;
+    let _http: http.Server;
+    let _client: clientLib.CometD;
+    let _uri: string;
 
     beforeEach(done => {
         _server = serverLib.createCometDServer();
         _server.addExtension(new serverAck.AcknowledgedMessagesExtension());
         _http = http.createServer(_server.handle);
         _http.listen(0, 'localhost', () => {
-            let port = _http.address().port;
+            const port = (_http.address() as AddressInfo).port;
             console.log('listening on localhost:' + port);
             _uri = 'http://localhost:' + port + '/cometd';
             _client = new clientLib.CometD();
+            _client.unregisterTransport('websocket');
             _client.registerExtension('ack', new ClientAck());
             _client.configure({
                 url: _uri
@@ -61,7 +64,7 @@ describe('acknowledgment extension', () => {
             callback();
         });
 
-        _client.addListener('/meta/connect', m => {
+        _client.addListener('/meta/connect', (m: any) => {
             if (m.ext && typeof m.ext.ack === 'number') {
                 _client.disconnect();
                 latch.signal();
@@ -78,7 +81,7 @@ describe('acknowledgment extension', () => {
         _client.unregisterExtension('ack');
         let metaConnects = 0;
         _client.registerExtension('test', {
-            outgoing: message => {
+            outgoing: (message: any) => {
                 if (message.channel === '/meta/connect') {
                     if (++metaConnects === 3) {
                         // Decrement the batch number to get the message again.
@@ -100,7 +103,7 @@ describe('acknowledgment extension', () => {
         });
 
         // Store the received messages and verify them.
-        let messages = [];
+        let messages: any[] = [];
         let messageLatch = new Latch(2, () => {
             assert.strictEqual(messages.length, 2);
             assert.strictEqual(messages[0], '1');
@@ -109,10 +112,10 @@ describe('acknowledgment extension', () => {
                 done();
             });
         });
-        _client.handshake(hs => {
+        _client.handshake((hs: any) => {
             if (hs.successful) {
                 _client.batch(() => {
-                    _client.subscribe('/test', m => {
+                    _client.subscribe('/test', (m: any) => {
                         messages.push(m.data);
                         messageLatch.signal();
                     });
