@@ -19,7 +19,7 @@
     "url": "https://github.com/cometd/cometd-nodejs-server.git"
   },
   "scripts": {
-    "test": "mocha --exit --require ts-node/register --extensions ts test/*.ts"
+    "test": "mocha --exit --require ts-node/register --extension ts"
   },
   "devDependencies": {
     "cometd": "latest",

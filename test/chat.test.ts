@@ -13,10 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import http = require('http');
-import serverLib = require('..');
-// @ts-ignore
-import clientLib = require('cometd');
+import * as http from 'http';
+import * as serverLib from '..';
+import * as clientLib from 'cometd';
 import {AddressInfo} from 'net';
 
 require('cometd-nodejs-client').adapt();
@@ -63,11 +62,11 @@ describe('chat', () => {
         // The second client must handshake after the first client to avoid
         // that the server generates two different BAYEUX_BROWSER cookies.
         // The second client will be in 'multiple-clients' mode.
-        client1.handshake((hs1: any) => {
+        client1.handshake(hs1 => {
             if (hs1.successful) {
-                client2.handshake((hs2: any) => {
+                client2.handshake(hs2 => {
                     if (hs2.successful) {
-                        client1.subscribe(_broadcastChannel, (msg1: any) => {
+                        client1.subscribe(_broadcastChannel, msg1 => {
                             if (msg1.data.user !== 1) {
                                 client1.disconnect(() => {
                                     client2.disconnect(() => {
@@ -75,16 +74,16 @@ describe('chat', () => {
                                     });
                                 });
                             }
-                        }, (ss1: any) => {
+                        }, ss1 => {
                             if (ss1.successful) {
-                                client2.subscribe(_broadcastChannel, (msg2: any) => {
+                                client2.subscribe(_broadcastChannel, msg2 => {
                                     if (msg2.data.user !== 2) {
                                         client2.publish(_serviceChannel, {
                                             user: 2,
                                             text: 'Hi ' + msg2.data.user + '! I am 2.'
                                         });
                                     }
-                                }, (ss2: any) => {
+                                }, ss2 => {
                                     if (ss2.successful) {
                                         client1.publish(_serviceChannel, {
                                             user: 1,

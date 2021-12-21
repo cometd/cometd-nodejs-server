@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import assert = require('assert');
-import url = require('url');
-import http = require('http');
-import serverLib = require('..');
+import * as assert from 'assert';
+import * as http from 'http';
+import * as serverLib from '..';
+import * as url from 'url';
 import {Latch} from './latch';
 import {AddressInfo} from 'net';
 
@@ -538,7 +538,7 @@ describe('server', () => {
                 content += chunk;
             });
             request.addListener('end', () => {
-                request.body = JSON.parse(content);
+                (request as any).body = JSON.parse(content);
                 _server.handle(request, response);
             });
         });

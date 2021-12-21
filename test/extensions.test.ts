@@ -13,11 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import assert = require('assert');
-import http = require('http');
-import serverLib = require('..');
-// @ts-ignore
-import clientLib = require('cometd');
+import * as assert from 'assert';
+import * as http from 'http';
+import * as serverLib from '..';
+import * as clientLib from 'cometd';
 import {Latch} from './latch';
 import {AddressInfo} from 'net';
 
@@ -65,7 +64,7 @@ describe('extensions', () => {
             }
         });
 
-        _client.handshake((hs: any) => {
+        _client.handshake(hs => {
             if (hs.successful) {
                 _client.disconnect();
                 latch.signal();
@@ -89,7 +88,7 @@ describe('extensions', () => {
             }
         });
 
-        _client.handshake((hs: any) => {
+        _client.handshake(hs => {
             assert.strictEqual(hs.successful, false);
             assert.ok(hs.error);
             assert(hs.error.indexOf('message_deleted') > 0);
@@ -118,7 +117,7 @@ describe('extensions', () => {
             }
         });
 
-        _client.handshake((hs: any) => {
+        _client.handshake(hs => {
             assert.strictEqual(hs.successful, false);
             assert.ok(hs.error);
             assert(hs.error.indexOf('message_deleted') > 0);
@@ -201,7 +200,7 @@ describe('extensions', () => {
             }
         });
 
-        _client.handshake((hs: any) => {
+        _client.handshake(hs => {
             assert.strictEqual(hs.successful, true);
             assert.strictEqual(counter, 8);
             _client.disconnect();

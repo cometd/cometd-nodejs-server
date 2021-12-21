@@ -13,14 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-const assert = require('assert');
-import http = require('http');
-import serverLib = require('..');
-// @ts-ignore
-import clientLib = require('cometd');
-
-const serverAck = require('../ack-extension');
-const ClientAck = require('cometd/AckExtension');
+import * as assert from 'assert';
+import * as http from 'http';
+import * as serverLib from '..';
+import * as serverAck from '../ack-extension';
+import * as clientLib from 'cometd';
+require('cometd/AckExtension');
 import {Latch} from './latch';
 import {AddressInfo} from 'net';
 
@@ -42,7 +40,7 @@ describe('acknowledgment extension', () => {
             _uri = 'http://localhost:' + port + '/cometd';
             _client = new clientLib.CometD();
             _client.unregisterTransport('websocket');
-            _client.registerExtension('ack', new ClientAck());
+            _client.registerExtension('ack', new clientLib.AckExtension());
             _client.configure({
                 url: _uri
             });
@@ -64,8 +62,9 @@ describe('acknowledgment extension', () => {
             callback();
         });
 
-        _client.addListener('/meta/connect', (m: any) => {
-            if (m.ext && typeof m.ext.ack === 'number') {
+        _client.addListener('/meta/connect', m => {
+            const ext: any = m.ext;
+            if (ext && typeof ext.ack === 'number') {
                 _client.disconnect();
                 latch.signal();
             }
@@ -77,17 +76,19 @@ describe('acknowledgment extension', () => {
     it('resends messages', done => {
         // Setup the client to fake the batch numbers.
         // Extension.outgoing is notified in reverse order.
-        const ackExt = _client.getExtension('ack');
+        const ackExt = _client.getExtension('ack')!;
         _client.unregisterExtension('ack');
         let metaConnects = 0;
         _client.registerExtension('test', {
-            outgoing: (message: any) => {
+            outgoing: message => {
                 if (message.channel === '/meta/connect') {
                     if (++metaConnects === 3) {
                         // Decrement the batch number to get the message again.
+                        // @ts-ignore
                         --message.ext.ack;
                     }
                 }
+                return message;
             }
         });
         _client.registerExtension('ack', ackExt);
@@ -112,10 +113,10 @@ describe('acknowledgment extension', () => {
                 done();
             });
         });
-        _client.handshake((hs: any) => {
+        _client.handshake(hs => {
             if (hs.successful) {
                 _client.batch(() => {
-                    _client.subscribe('/test', (m: any) => {
+                    _client.subscribe('/test', m => {
                         messages.push(m.data);
                         messageLatch.signal();
                     });

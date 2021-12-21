@@ -13,11 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import assert = require('assert');
-import http = require('http');
-import serverLib = require('..');
-// @ts-ignore
-import clientLib = require('cometd');
+import * as assert from 'assert';
+import * as http from 'http';
+import * as serverLib from '..';
+import * as clientLib from 'cometd';
 import {Latch} from './latch';
 import {AddressInfo} from 'net';
 
@@ -61,7 +60,7 @@ describe('integration', () => {
             done();
         });
 
-        _client.handshake((hs: any) => {
+        _client.handshake(hs => {
             if (hs.successful) {
                 let channel = _server.createServerChannel(channelName);
                 const listener = () => undefined;
@@ -89,7 +88,7 @@ describe('integration', () => {
             url: _uri
         });
 
-        client2.addListener('/meta/connect', (message: any) => {
+        client2.addListener('/meta/connect', message => {
             const advice = message.advice;
             if (advice && advice['multiple-clients']) {
                 client1.disconnect(() => {
@@ -102,9 +101,9 @@ describe('integration', () => {
 
         // The second client must handshake after the first client to avoid
         // that the server generates two different BAYEUX_BROWSER cookies.
-        client1.handshake((hs1: any) => {
+        client1.handshake(hs1 => {
             if (hs1.successful) {
-                const session = _server.getServerSession(hs1.clientId);
+                const session = _server.getServerSession(hs1.clientId!);
                 session.addListener('suspended', () => {
                     client2.handshake();
                 });
@@ -119,13 +118,13 @@ describe('integration', () => {
         });
 
         const latch = new Latch(2, done);
-        client.handshake((hs: any) => {
+        client.handshake(hs => {
             if (hs.successful) {
                 client.addListener('/meta/disconnect', () => {
                     latch.signal();
                 });
 
-                const session = _server.getServerSession(client.getClientId());
+                const session = _server.getServerSession(client.getClientId()!);
                 session.addListener('suspended', () => {
                     client.addListener('/meta/connect', () => {
                         latch.signal();

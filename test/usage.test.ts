@@ -13,11 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import assert = require('assert');
-import http = require('http');
-import serverLib = require('..');
-// @ts-ignore
-import clientLib = require('cometd');
+import * as assert from 'assert';
+import * as http from 'http';
+import * as serverLib from '..';
+import * as clientLib from 'cometd';
 import {AddressInfo} from 'net';
 
 require('cometd-nodejs-client').adapt();
@@ -58,7 +57,7 @@ describe('usage', () => {
             callback();
         });
 
-        _client.handshake((reply: any) => {
+        _client.handshake(reply => {
             assert.strictEqual(reply.successful, true);
             _client.disconnect(() => {
                 done();
@@ -77,9 +76,9 @@ describe('usage', () => {
             callback();
         });
 
-        _client.handshake((reply: any) => {
+        _client.handshake(reply => {
             if (reply.successful) {
-                _client.publish(channelName, 'data', (msgReply: any) => {
+                _client.publish(channelName, 'data', msgReply => {
                     if (msgReply.successful) {
                         _client.disconnect(() => {
                             done();
@@ -92,10 +91,10 @@ describe('usage', () => {
 
     it('records subscription', done => {
         const channelName = '/bar';
-        _client.handshake((reply: any) => {
+        _client.handshake(reply => {
             if (reply.successful) {
                 _client.subscribe(channelName, () => {
-                }, (r: any) => {
+                }, r => {
                     if (r.successful) {
                         const channel = _server.getServerChannel(channelName);
                         assert.ok(channel);
@@ -115,16 +114,16 @@ describe('usage', () => {
 
     it('delivers server-side message without outstanding /meta/connect', done => {
         const channelName = '/baz';
-        _client.addListener(channelName, (msg: any) => {
+        _client.addListener(channelName, msg => {
             assert.ok(msg.data);
             _client.disconnect(() => {
                 done();
             });
         });
 
-        _client.handshake((reply: any) => {
+        _client.handshake(reply => {
             if (reply.successful) {
-                const session = _server.getServerSession(reply.clientId);
+                const session = _server.getServerSession(reply.clientId!);
                 // The /meta/connect did not leave the client yet,
                 // so here we call deliver() and message will be queued;
                 // when the /meta/connect arrives on server the message
@@ -136,14 +135,14 @@ describe('usage', () => {
 
     it('publishes server-side message', done => {
         const channelName = "/fuz";
-        _client.handshake((hs: any) => {
+        _client.handshake(hs => {
             if (hs.successful) {
-                _client.subscribe(channelName, (msg: any) => {
+                _client.subscribe(channelName, msg => {
                     assert.ok(msg.data);
                     _client.disconnect(() => {
                         done();
                     });
-                }, (ss: any) => {
+                }, ss => {
                     if (ss.successful) {
                         _server.getServerChannel(channelName).publish(null, 'data');
                     }
@@ -154,15 +153,14 @@ describe('usage', () => {
 
     it('publishes client-side message', done => {
         const channelName = '/gah';
-        _client.handshake((hs: any) => {
+        _client.handshake(hs => {
             if (hs.successful) {
-                _client.subscribe(channelName, (msg: any) => {
-                    assert.strictEqual(msg.reply, undefined);
+                _client.subscribe(channelName, msg => {
                     assert.ok(msg.data);
                     _client.disconnect(() => {
                         done();
                     });
-                }, (ss: any) => {
+                }, ss => {
                     if (ss.successful) {
                         _client.publish(channelName, 'data');
                     }
@@ -173,13 +171,13 @@ describe('usage', () => {
 
     it('receives server-side publish via /meta/connect', done => {
         const channelName = '/hua';
-        _client.handshake((hs: any) => {
+        _client.handshake(hs => {
             if (hs.successful) {
-                const session = _server.getServerSession(hs.clientId);
+                const session = _server.getServerSession(hs.clientId!);
                 session.addListener('suspended', () => {
                     _server.getServerChannel(channelName).publish(null, 'data');
                 });
-                _client.subscribe(channelName, (msg: any) => {
+                _client.subscribe(channelName, msg => {
                     assert.ok(msg.data);
                     _client.disconnect(() => {
                         done();
@@ -197,7 +195,7 @@ describe('usage', () => {
         };
 
         // Try without authentication fields.
-        _client.handshake({}, (hs1: any) => {
+        _client.handshake({}, hs1 => {
             assert.strictEqual(hs1.successful, false);
             assert.ok(hs1.advice);
             assert.strictEqual(hs1.advice.reconnect, 'none');
@@ -206,7 +204,7 @@ describe('usage', () => {
             setTimeout(() => {
                 _client.handshake({
                     credentials: 'secret'
-                }, (hs2: any) => {
+                }, hs2 => {
                     assert.strictEqual(hs2.successful, true);
                     _client.disconnect(() => {
                         done();
@@ -229,7 +227,7 @@ describe('usage', () => {
             done();
         });
 
-        _client.handshake((hs: any) => {
+        _client.handshake(hs => {
             if (hs.successful) {
                 _client.publish(channelName, 'luz');
             }
