@@ -834,4 +834,105 @@ describe('server', () => {
             '"ext": {"ack": true}' +
             '}]');
     });
+
+    it('unsubscribe removes multiple subscriptions', done => {
+        http.request(newRequest(), r1 => {
+            receiveResponse(r1, replies1 => {
+                const reply1 = replies1[0];
+                assert.strictEqual(reply1.successful, true);
+                const sessionId = reply1.clientId;
+                const cookie = extractBrowserCookie(r1);
+                const subscribe = newRequest({
+                    Cookie: 'BAYEUX_BROWSER=' + cookie
+                });
+                http.request(subscribe, r2 => {
+                    receiveResponse(r2, replies2 => {
+                        const reply2 = replies2[0];
+                        assert.strictEqual(reply2.successful, true);
+                        const unsubscribe = newRequest({
+                            Cookie: 'BAYEUX_BROWSER=' + cookie
+                        });
+                        http.request(unsubscribe, r3 => {
+                            receiveResponse(r3, replies3 => {
+                                const reply3 = replies3[0];
+                                assert.strictEqual(reply3.successful, true);
+                                const session = _server.getServerSession(sessionId);
+                                assert.ok(session);
+                                const fooChannel = _server.getServerChannel('/foo');
+                                assert.ok(fooChannel);
+                                const barChannel = _server.getServerChannel('/bar');
+                                assert.ok(barChannel);
+                                assert.strictEqual(session.subscriptions.length, 0);
+                                assert.strictEqual(fooChannel.subscribers.length, 0);
+                                assert.strictEqual(barChannel.subscribers.length, 0);
+                                done();
+                            });
+                        }).end('[{' +
+                            '"channel": "/meta/unsubscribe",' +
+                            '"clientId": "' + sessionId + '",' +
+                            '"subscription": ["/foo", "/bar"]' +
+                            '}]');
+                    });
+                }).end('[{' +
+                    '"channel": "/meta/subscribe",' +
+                    '"clientId": "' + sessionId + '",' +
+                    '"subscription": ["/foo", "/bar"]' +
+                    '}]');
+            });
+        }).end('[{' +
+            '"channel": "/meta/handshake",' +
+            '"version": "1.0",' +
+            '"supportedConnectionTypes": ["long-polling"]' +
+            '}]');
+    });
+
+    it('disconnect removes multiple subscriptions', done => {
+        http.request(newRequest(), r1 => {
+            receiveResponse(r1, replies1 => {
+                const reply1 = replies1[0];
+                assert.strictEqual(reply1.successful, true);
+                const sessionId = reply1.clientId;
+                const cookie = extractBrowserCookie(r1);
+                const subscribe = newRequest({
+                    Cookie: 'BAYEUX_BROWSER=' + cookie
+                });
+                http.request(subscribe, r2 => {
+                    receiveResponse(r2, replies2 => {
+                        const reply2 = replies2[0];
+                        assert.strictEqual(reply2.successful, true);
+                        const session = _server.getServerSession(sessionId);
+                        assert.ok(session);
+                        const fooChannel = _server.getServerChannel('/foo');
+                        assert.ok(fooChannel);
+                        const barChannel = _server.getServerChannel('/bar');
+                        assert.ok(barChannel);
+                        const disconnect = newRequest({
+                            Cookie: 'BAYEUX_BROWSER=' + cookie
+                        });
+                        http.request(disconnect, r3 => {
+                            receiveResponse(r3, replies3 => {
+                                const reply3 = replies3[0];
+                                assert.strictEqual(reply3.successful, true);
+                                assert.strictEqual(session.subscriptions.length, 0);
+                                assert.strictEqual(fooChannel.subscribers.length, 0);
+                                assert.strictEqual(barChannel.subscribers.length, 0);
+                                done();
+                            });
+                        }).end('[{' +
+                            '"channel": "/meta/disconnect",' +
+                            '"clientId": "' + sessionId + '"' +
+                            '}]');
+                    });
+                }).end('[{' +
+                    '"channel": "/meta/subscribe",' +
+                    '"clientId": "' + sessionId + '",' +
+                    '"subscription": ["/foo", "/bar"]' +
+                    '}]');
+            });
+        }).end('[{' +
+            '"channel": "/meta/handshake",' +
+            '"version": "1.0",' +
+            '"supportedConnectionTypes": ["long-polling"]' +
+            '}]');
+    });
 });

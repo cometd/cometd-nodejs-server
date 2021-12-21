@@ -1144,8 +1144,9 @@ module.exports = (() => {
             _removed: function(timeout) {
                 _handshaken = false;
                 const self = this;
-                _asyncFoldLeft(_subscriptions, undefined, (y, s, c) => {
-                    s._unsubscribe(self, null, c);
+                // Slice the array because _unsubscribe() modifies _subscriptions during the iteration.
+                _asyncFoldLeft(_subscriptions.slice(), undefined, (ignored, channel, c) => {
+                    channel._unsubscribe(self, null, c);
                 }, () => {
                     _notifyEvent(_listeners['removed'], [self, timeout]);
                 });
