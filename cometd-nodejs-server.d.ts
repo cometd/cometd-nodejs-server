@@ -139,8 +139,12 @@ export interface Options {
     sweepPeriod?: number;
     timeout?: number;
     // HTTP options.
+    browserCookieDomain?: string;
     browserCookieHttpOnly?: boolean;
+    browserCookieMaxAge?: number;
     browserCookieName?: string;
+    browserCookiePartitioned?: boolean;
+    browserCookiePath?: string;
     browserCookieSameSite?: 'Strict' | 'Lax' | 'None';
     browserCookieSecure?: boolean;
     duplicateMetaConnectHttpResponseCode?: number;

@@ -730,6 +730,41 @@ describe('server', () => {
             '}]');
     });
 
+    it('supports Partitioned cookie attribute', done => {
+        _server.options.browserCookiePath = '/';
+        _server.options.browserCookieSecure = true;
+        _server.options.browserCookiePartitioned = true;
+
+        http.request(newRequest(), r => {
+            receiveResponse(r, replies => {
+                const reply = replies[0];
+                assert.strictEqual(reply.successful, true);
+                const headers = r.headers;
+                for (let name in headers) {
+                    if (headers.hasOwnProperty(name)) {
+                        if (/^set-cookie$/i.test(name)) {
+                            const values = headers[name] || [];
+                            for (let i = 0; i < values.length; ++i) {
+                                let value = values[i];
+                                if (value.indexOf('Partitioned') >= 0 &&
+                                    value.indexOf('Path=/') >= 0 &&
+                                    value.indexOf('Secure') >= 0) {
+                                    done();
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
+                done(new Error('missing Partitioned cookie attribute'));
+            });
+        }).end('[{' +
+            '"channel": "/meta/handshake",' +
+            '"version": "1.0",' +
+            '"supportedConnectionTypes": ["long-polling"]' +
+            '}]');
+    });
+
     it('resends messages when connection is broken', done => {
         const serverAck = require('../ack-extension');
         _server.addExtension(new serverAck.AcknowledgedMessagesExtension());
