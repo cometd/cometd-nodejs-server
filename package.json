@@ -22,12 +22,12 @@
     "test": "mocha --exit --require ts-node/register --extension ts"
   },
   "devDependencies": {
+    "@types/mocha": ">=10.0.0",
+    "@types/node": ">=16.0.0",
     "cometd": "^7.0.6",
     "cometd-nodejs-client": "^1.4.0",
     "mocha": ">=10.2.0",
-    "typescript": ">=5.0.0",
     "ts-node": ">=10.9.0",
-    "@types/node": ">=16.0.0",
-    "@types/mocha": ">=10.0.0"
+    "typescript": ">=5.0.0"
   }
 }

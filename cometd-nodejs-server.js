@@ -358,6 +358,18 @@ module.exports = (() => {
 
         function _generateCookie(cookieName, cookieValue) {
             let result = cookieName + '=' + cookieValue;
+            const domain = _self.option('browserCookieDomain');
+            if (domain) {
+                result += '; Domain=' + domain;
+            }
+            const path = _self.option('browserCookiePath');
+            if (path) {
+                result += '; Path=' + path;
+            }
+            const maxAge = _self.option('browserCookieMaxAge');
+            if (maxAge) {
+                result += '; Max-Age=' + maxAge;
+            }
             if (_self.option('browserCookieHttpOnly') === true) {
                 result += '; HttpOnly';
             }
@@ -367,6 +379,9 @@ module.exports = (() => {
             const sameSite = _self.option('browserCookieSameSite');
             if (sameSite) {
                 result += '; SameSite=' + sameSite;
+            }
+            if (_self.option('browserCookiePartitioned') === true) {
+                result += '; Partitioned';
             }
             return result;
         }
